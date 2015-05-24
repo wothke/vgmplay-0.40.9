@@ -1,8 +1,8 @@
 /**
 * sample_player.js
-* version 1.0 (xmp)
+* version 1.03 (resampler)
 *
-* 	Copyright (C) 2014 Juergen Wothke
+* 	Copyright (C) 2015 Juergen Wothke
 *
 * Terms of Use: This software is licensed under a CC BY-NC-SA 
 * (http://creativecommons.org/licenses/by-nc-sa/4.0/).
@@ -37,6 +37,8 @@ SamplePlayer = function(bp, onEnd, onUpdate) {
 	
 	this.sourceBuffer;
 	this.sourceBufferLen;
+	this.inputSampleRate;
+	this.resampleBuffer;
 
 	this.numberOfSamplesRendered= 0;
 	this.numberOfSamplesToRender= 0;
@@ -48,14 +50,19 @@ SamplePlayer = function(bp, onEnd, onUpdate) {
 	this.isWaitingForFile= false;
 	this.initInProgress=false;
 
+	this.SAMPLES_PER_BUFFER;	// allowed: buffer sizes: 256, 512, 1024, 2048, 4096, 8192, 16384
+
 	try {
 		window.AudioContext = window.AudioContext||window.webkitAudioContext;
 		this.sampleRate = new AudioContext().sampleRate;
+
+		this.inputSampleRate= 44100;	// ZXTune uses hard-coded sample rate of 44100	
+		this.SAMPLES_PER_BUFFER = 8192;
+		
+		this.resampleBuffer= new Float32Array(Math.round(this.SAMPLES_PER_BUFFER*this.sampleRate/this.inputSampleRate) * 2);
 	} catch(e) {
 		alert('Web Audio API is not supported in this browser (get Chrome 18 or Firefox 26)');
 	}
-
-	this.SAMPLES_PER_BUFFER = 8192;	// allowed: buffer sizes: 256, 512, 1024, 2048, 4096, 8192, 16384
 	
 	window.player= this;
 };
@@ -92,11 +99,14 @@ SamplePlayer.prototype = {
 			try {
 				Module.FS_createPath("/", this.basePath, true, true);
 			} catch(e) {}
-										
-			var f= Module.FS_createDataFile("/", filenameFull, d, true, true);
-			this.binaryFileMap[filenameFull]= f;
-		
-		
+			
+			try {
+				// for some reason neither FS_deleteFile nor FS_unlink seem to be available in my version
+				// an I cannot remove the bloody file if it already exists.. :-(
+				var f= Module.FS_createDataFile("/", filenameFull, d, true, true);
+				this.binaryFileMap[filenameFull]= f;
+			} catch(e) {
+			}		
 			this.playSong(file.name, reader.result, 0, 0);
 		}.bind(this);
 		reader.readAsArrayBuffer(file);
@@ -213,6 +223,58 @@ SamplePlayer.prototype = {
 			return ret;
 		}
 	},
+	getResampledAudio: function(srcBufI16, len) {	
+		var resampleLen= Math.round(len * this.sampleRate / this.inputSampleRate);	// for each of the 2 channels
+		var bufSize= resampleLen << 1;
+		
+		if (bufSize > this.resampleBuffer.length) this.resampleBuffer= new Float32Array(bufSize);
+		
+		// resample the two interleaved channels
+		this.resampleChannel(0, srcBufI16, len, resampleLen);
+		this.resampleChannel(1, srcBufI16, len, resampleLen);
+		
+		return resampleLen;
+	},
+	resampleChannel: function(channelId, srcBufI16, len, resampleLen) {
+		// Bresenham algorithm based resampling
+		var x0= 0;
+		var y0= 0;
+		var x1= resampleLen;
+		var y1= len;
+
+		var dx =  Math.abs(x1-x0), sx = x0<x1 ? 1 : -1;
+		var dy = -Math.abs(y1-y0), sy = y0<y1 ? 1 : -1;
+		var err = dx+dy, e2;
+
+		var i1, i2, v;
+		for(;;){
+			i1= (x0*2) + channelId;
+			i2= srcBufI16 + (y0*2) + channelId;
+			v= Module.HEAP16[i2] << 16;
+			this.resampleBuffer[i1]= v/0x7fffffff;
+
+			if (x0>=x1 && y0>=y1) break;
+			e2 = 2*err;
+			if (e2 > dy) { err += dy; x0 += sx; }
+			if (e2 < dx) { err += dx; y0 += sy; }
+		}
+	},
+	resetSampleRate: function() {
+		if (this.newSampleRate > 0) {
+			this.sampleRate= this.newSampleRate;
+						
+			var s= Math.round(this.SAMPLES_PER_BUFFER *this.sampleRate/this.inputSampleRate) *2;
+			
+			if (s > this.resampleBuffer.length)
+				this.resampleBuffer= new Float32Array(s);
+				
+			this.numberOfSamplesRendered= 0;
+			this.numberOfSamplesToRender= 0;
+			this.sourceBufferIdx=0;
+			
+			this.newSampleRate= -1;
+		}
+	},
 	updateTrackInfos: function(filename) {
 		ret = Module.ccall('emu_get_track_info', 'number');
 		
@@ -263,30 +325,26 @@ SamplePlayer.prototype = {
 					this.sourceBuffer= Module.ccall('emu_get_audio_buffer', 'number');
 					this.sourceBufferLen= Module.ccall('emu_get_audio_buffer_length', 'number');
 					
-					this.numberOfSamplesToRender = this.sourceBufferLen;
+					var srcBufI16= this.sourceBuffer>>1;	// 2 x 16 bit samples
+					this.numberOfSamplesToRender =  this.getResampledAudio(srcBufI16, this.sourceBufferLen);
 					this.sourceBufferIdx=0;			
 				}
 				
-				var srcBufI16= this.sourceBuffer>>1;	// 2 x 16 bit samples
 				if (this.numberOfSamplesRendered + this.numberOfSamplesToRender > outSize) {
 					var availableSpace = outSize-this.numberOfSamplesRendered;
 					
 					var i;
 					for (i= 0; i<availableSpace; i++) {
-						var r16= Module.HEAP16[srcBufI16 + (this.sourceBufferIdx++)];
-						var l16= Module.HEAP16[srcBufI16 + (this.sourceBufferIdx++)];
-						output1[i+this.numberOfSamplesRendered]= r16/0x7fff;
-						output2[i+this.numberOfSamplesRendered]= l16/0x7fff;
+						output1[i+this.numberOfSamplesRendered]= this.resampleBuffer[this.sourceBufferIdx++];
+						output2[i+this.numberOfSamplesRendered]= this.resampleBuffer[this.sourceBufferIdx++];
 					}				
 					this.numberOfSamplesToRender -= availableSpace;
 					this.numberOfSamplesRendered = outSize;
 				} else {
 					var i;
 					for (i= 0; i<this.numberOfSamplesToRender; i++) {
-						var r16= Module.HEAP16[srcBufI16 + (this.sourceBufferIdx++)];
-						var l16= Module.HEAP16[srcBufI16 + (this.sourceBufferIdx++)];
-						output1[i+this.numberOfSamplesRendered]= r16/0x7fff;
-						output2[i+this.numberOfSamplesRendered]= l16/0x7fff;
+						output1[i+this.numberOfSamplesRendered]= this.resampleBuffer[this.sourceBufferIdx++];
+						output2[i+this.numberOfSamplesRendered]= this.resampleBuffer[this.sourceBufferIdx++];
 					}						
 					this.numberOfSamplesRendered += this.numberOfSamplesToRender;
 					this.numberOfSamplesToRender = 0;

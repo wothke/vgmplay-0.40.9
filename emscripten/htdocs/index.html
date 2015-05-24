@@ -29,6 +29,11 @@
 <meta charset="utf-8" />
 <meta http-equiv="X-UA-Compatible" content="chrome=1" />
 <title>webVGM - the VGM player for the Web</title>
+<!-- emulate arrows of "HTML5 <details>" in Firefox-->
+<style>			
+	.no-details details > summary:before { float: left; width: 15px; content: '\25B6'; }
+	.no-details details.open > summary:before { content: '\25BC'; }
+</style>
 
 <meta name="description" content="Experimental JavaScript version of VGMPlay; it plays various Arcade and Console game music files - formats like: Video Game Music Files (*.vgm, *.vgz), Creative Music Files (*.cmf), DosBox RAW OPL Log Files (*.dro). Supported sound chips: SN76496 (Sega PSG) and T6W28 (NeoGeo Pocket custom), YM2413* (OPLL), YM2612 (OPN2), YM2151 (OPM), SegaPCM, RF5C68, YM2203 (OPN), YM2608 (OPNA), YM2610/B (OPNB), YM3812* (OPL2), YM3526* (OPL), Y8950* (MSX AUDIO), YMF262* (OP3), YMF278B (OPL4), YMF271 (OPLX), YMZ280B, RF5C164 (Sega MegaCD PCM), PWM (from Sega 32x), AY8910 (MSX PSG), GameBoy DMG, NES APU (incl. FDS), MultiPCM, UPD7759, OKI6258 (Sharp X68000 ADPCM), OKI6295, K051649, K054539, HuC6280 (PC Engine), C140, K053260, Pokey (Atari), QSound, SCSP (Saturn Custom Sound Processor, YMF292-F">
 <meta name="author" content="Juergen Wothke">
@@ -47,6 +52,24 @@
 
 <script type="text/javascript" src="vgmPlay.js"></script>
 <script type="text/javascript" src="sample_player.js"></script>
+
+<script src="/webvgm/stdlib/jquery1.11.min.js"></script>
+<script src="/webvgm/stdlib/jquery.details.min.js"></script>
+<script>
+	window.console || (window.console = { 'log': alert });
+	$(function() {
+		$('html').addClass($.fn.details.support ? 'details' : 'no-details');
+		$('details').details();
+
+		if (!window.webkitAudioContext) {
+			// hack to get rid of Firefox specific pseudo elements used to sim webkit-box-reflect
+			var e = document.getElementById("moz-reflect-logo");		
+			e.className += " enableMozReflection";
+			var e2 = document.getElementById("moz-reflect-spectrum");		
+			e2.className += " enableMozReflection";
+		}
+	});	
+</script>
 
 <script>
 var basePath= 'music/';
@@ -189,11 +212,15 @@ Graphix = function(audio) {
 	this.WIDTH= 800;
 	this.HEIGHT= 200;
 	
-	this.canvasSpectrum = document.getElementById('spectrum');
+	this.canvasSpectrum = document.getElementById('spectrumCanvas');
 	this.ctxSpectrum = this.canvasSpectrum.getContext('2d');
 	this.canvasSpectrum.width = this.WIDTH;
 
-	var canvas2 = document.getElementById('logo');
+	
+  this.mozReflectSpectrum = document.getElementById('moz-reflect-spectrum');
+  this.mozReflectLogo = document.getElementById('moz-reflect-logo');
+	
+	var canvas2 = document.getElementById('logoCanvas');
 	this.ctxLegend = canvas2.getContext('2d');
 };
 
@@ -219,7 +246,9 @@ Graphix.prototype = {
 		var SPACER_WIDTH = 10;
 		var BAR_WIDTH = 5;
 		var OFFSET = 100;
-
+		var patternHeight= 9;	
+		var patternWidth= 295;	
+		
 		var numBars = Math.round(this.WIDTH / SPACER_WIDTH);
 
 		this.ctxSpectrum.clearRect(0, 0, this.WIDTH, this.HEIGHT);
@@ -227,17 +256,23 @@ Graphix.prototype = {
 		this.ctxSpectrum.fillStyle = '#fe5139';
 		this.ctxSpectrum.lineCap = 'round';
 
+		
 		if (this.backgroundImg) {
 			for (var i = 0; i < numBars; ++i) {
-			var magnitude = freqByteData[i + OFFSET]*this.HEIGHT/255;
-	//			this.ctxSpectrum.fillRect(i * SPACER_WIDTH, this.HEIGHT, BAR_WIDTH, -magnitude);
-				
-				o= Math.round(this.HEIGHT - magnitude);
+				var scale= freqByteData[i + OFFSET]/0xff;
+				var magnitude = scale*this.HEIGHT;
 				x=i/numBars*500;
-				this.ctxSpectrum.drawImage(this.backgroundImg, x,0, BAR_WIDTH, 255, 
-											i * SPACER_WIDTH, o, BAR_WIDTH, Math.round(magnitude));
-				
-				
+				this.ctxSpectrum.drawImage(this.backgroundImg, 
+										// clip image
+										x,0, 								// sx, sy
+										BAR_WIDTH, patternHeight, 			// swidth, sheight
+										// position clipped image
+										i * SPACER_WIDTH, this.HEIGHT - magnitude,	// x, y
+										BAR_WIDTH, 30*(scale*1.4));	// width, height
+					
+				// hack: make sure dumb Firefox knows that redraw is needed..
+				this.mozReflectSpectrum.style.visibility = "hidden";
+				this.mozReflectSpectrum.style.visibility = "visible";
 			}
 		}
 	},
@@ -265,6 +300,11 @@ Graphix.prototype = {
 		this.text(this.ctxLegend, player.title, 20, 190);
 		this.text(this.ctxLegend, player.program, 20, 230);
 		this.text(this.ctxLegend, "", 20, 270);
+		
+		// hack: make sure dumb Firefox knows that redraw is needed..
+		this.mozReflectLogo.style.visibility = "hidden";
+		this.mozReflectLogo.style.visibility = "visible";
+		
 	},
 };
 
@@ -298,6 +338,16 @@ function init() {
 
 </script>
 
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-60370798-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
 </head>
 
 <body onload="init();">
@@ -345,12 +395,14 @@ function init() {
 </aside>
 
 <section>
-  <div>
-	<canvas id="logo" class="logo" width="600" height="250"></canvas>
-    <canvas id="spectrum" class="spectrum" width="512" height="200"></canvas>
+  <div id="logo" class="logo">
+	<div id="moz-reflect-logo"><canvas  id="logoCanvas"  width="600" height="250"></canvas></div>
+  </div>
+  <div id="spectrum" class="spectrum">
+  	<div id="moz-reflect-spectrum"><canvas id="spectrumCanvas" width="512" height="200"></canvas></div>
   </div>
   <div id="drop" class="drop" ondrop="drop(event)" ondragover="allowDrop(event)">
- <img src="arcade.gif" width=300 height=300/>
+ <img src="arcade.gif" width=270 height=270/>
   </div>
 
 </section>
