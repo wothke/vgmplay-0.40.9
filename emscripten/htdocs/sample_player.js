@@ -56,7 +56,7 @@ SamplePlayer = function(bp, onEnd, onUpdate) {
 		window.AudioContext = window.AudioContext||window.webkitAudioContext;
 		this.sampleRate = new AudioContext().sampleRate;
 
-		this.inputSampleRate= 44100;	// ZXTune uses hard-coded sample rate of 44100	
+		this.inputSampleRate= 48000;	// FIXME: directly set rate used by WebAudio and avoid resampling..
 		this.SAMPLES_PER_BUFFER = 8192;
 		
 		this.resampleBuffer= new Float32Array(Math.round(this.SAMPLES_PER_BUFFER*this.sampleRate/this.inputSampleRate) * 2);
