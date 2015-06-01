@@ -41,6 +41,7 @@ Running the makeEmscripten.bat will generate a JavaScript 'vgmPlay0.40.5' librar
 interface APIs. This lib is directly written into the web-page example in the "htdocs" sub-folder. (This generated lib is 
 used from some manually written JavaScript/WebAudio code, see htdocs/sample_player.js). Study the example in "htdocs" 
 for how the player is used (Notice: In order to play "YMF278B (OPL4)" files you'll need a sample ROM, called yrw801.rom - which 
-you should place in the "htdocs" folder.).
+you should place in the "htdocs" folder.). This project comes without any music files, so you'll have to get your own and place them
+in the htdocs/music folder (you'll also have to configure them in the 'songs' list in index.html).
 
 

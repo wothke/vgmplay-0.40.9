@@ -74,7 +74,8 @@
 <script>
 var basePath= 'music/';
 var songs = [
-	basePath+'Doom.vgz;2',	// boost volume <<3 for this one (hack for songs that for some reason don't play loud enough)	
+// add your music files here, e.g.:
+//	basePath+'some.vgz;2',	// boost volume <<2 for this one (hack for songs that for some reason don't play loud enough)
 ];
 
 var player= new SamplePlayer(basePath, doOnEnd, doOnUpdate);
@@ -96,6 +97,10 @@ Audio = function(songs) {
 	
 	this.current=-1;
 	this.someSongs= songs;
+	
+	if (songs.length == 0)
+		alert("No music files available. Please place some files in your 'music' folder and configure them in the'songs' list in index.html.");
+	
 	this.isReady= false;
 	
 	// preload all the intrastructure files so we won't run into async load issues later
@@ -207,8 +212,8 @@ function drop(ev) {
 
 Graphix = function(audio) {
 	this.audio= audio;
-	this.backgroundImg= 0;
-	
+	this.hexChars= "0123456789ABCDEF";
+		
 	this.WIDTH= 800;
 	this.HEIGHT= 200;
 	
@@ -216,32 +221,26 @@ Graphix = function(audio) {
 	this.ctxSpectrum = this.canvasSpectrum.getContext('2d');
 	this.canvasSpectrum.width = this.WIDTH;
 
-	
-  this.mozReflectSpectrum = document.getElementById('moz-reflect-spectrum');
-  this.mozReflectLogo = document.getElementById('moz-reflect-logo');
+	this.mozReflectSpectrum = document.getElementById('moz-reflect-spectrum');
+	this.mozReflectLogo = document.getElementById('moz-reflect-logo');
 	
 	var canvas2 = document.getElementById('logoCanvas');
 	this.ctxLegend = canvas2.getContext('2d');
+	
+	this.freqByteData = 0; 
 };
 
 Graphix.prototype = {
-	updateImage: function(src) {
-		this.backgroundImg= 0;
-		var imgObj = new Image();
-
-		imgObj.onload = function () { 
-			this.backgroundImg= imgObj;
-		}.bind(this);
-		imgObj.src=src;
-	},
 	reqAnimationFrame: function() {
 		window.requestAnimationFrame(this.redrawSpectrum.bind(this));
 	},
 	redrawSpectrum: function() {
 		this.reqAnimationFrame();
+
+		if (this.freqByteData == 0)
+			this.freqByteData = new Uint8Array(this.audio.analyzerNode.frequencyBinCount);	
 		
-		var freqByteData = new Uint8Array(this.audio.analyzerNode.frequencyBinCount);
-		this.audio.analyzerNode.getByteFrequencyData(freqByteData);
+		this.audio.analyzerNode.getByteFrequencyData(this.freqByteData);
 
 		var SPACER_WIDTH = 10;
 		var BAR_WIDTH = 5;
@@ -255,26 +254,25 @@ Graphix.prototype = {
 
 		this.ctxSpectrum.fillStyle = '#fe5139';
 		this.ctxSpectrum.lineCap = 'round';
-
 		
-		if (this.backgroundImg) {
-			for (var i = 0; i < numBars; ++i) {
-				var scale= freqByteData[i + OFFSET]/0xff;
-				var magnitude = scale*this.HEIGHT;
-				x=i/numBars*500;
-				this.ctxSpectrum.drawImage(this.backgroundImg, 
-										// clip image
-										x,0, 								// sx, sy
-										BAR_WIDTH, patternHeight, 			// swidth, sheight
-										// position clipped image
-										i * SPACER_WIDTH, this.HEIGHT - magnitude,	// x, y
-										BAR_WIDTH, 30*(scale*1.4));	// width, height
-					
-				// hack: make sure dumb Firefox knows that redraw is needed..
-				this.mozReflectSpectrum.style.visibility = "hidden";
-				this.mozReflectSpectrum.style.visibility = "visible";
-			}
-		}
+		for (var i = 0; i < numBars; ++i) {
+			var scale= this.freqByteData[i + OFFSET]/0xff;
+			var magnitude = scale*this.HEIGHT;
+			x=i/numBars*500;
+
+			var yellow= 0xf4cb25;
+			var red= 0xef210a;
+			var blue= 0x1b1088;
+			var purple= 0x630f64;
+			var cols= [yellow, red, purple, blue, blue];
+			
+			this.ctxSpectrum.fillStyle = this.colorGradient(cols,i/numBars);	// computationally much less expensive than previous impl with use of a scaled image
+			this.ctxSpectrum.fillRect(i * SPACER_WIDTH, this.HEIGHT- magnitude, BAR_WIDTH, 30*(scale*1.4));
+
+			// hack: make sure dumb Firefox knows that redraw is needed..
+			this.mozReflectSpectrum.style.visibility = "hidden";
+			this.mozReflectSpectrum.style.visibility = "visible";
+		}	
 	},
 	text: function(ctx, text, x, y) {
 		ctx.strokeText(text, x, y);
@@ -290,6 +288,7 @@ Graphix.prototype = {
 		this.ctxLegend.font = '90px serif bold';
 		
 		this.text(this.ctxLegend, "webVGM", 20, 70);
+		
 		this.ctxLegend.font = '25px sans-serif';
 		this.text(this.ctxLegend, "video game music nostalgia..", 20, 125);
 
@@ -306,12 +305,32 @@ Graphix.prototype = {
 		this.mozReflectLogo.style.visibility = "visible";
 		
 	},
-};
+	colorGradient: function(cols, s) {
+		var p= (cols.length-1)*s;
+		var i= Math.floor(p);
+		
+		return this.fadeColor(cols[i], cols[i+1], p-i);
+	},
+	fadeColor: function(from, to, s) {
+		var r1= (from >>16) & 0xff;
+		var g1= (from >>8) & 0xff;
+		var b1= from & 0xff;
 
+		var r= Math.round(r1+(((to >>16) & 0xff)-r1)*s);
+		var g= Math.round(g1+(((to >>8) & 0xff)-g1)*s);
+		var b= Math.round(b1+((to & 0xff)-b1)*s);
+	
+		return "#" +this.hex(r>>4) +this.hex(r) +this.hex(g>>4) +this.hex(g) +this.hex(b>>4) +this.hex(b);
+		// return "rgb("+r+", "+g+", "+b")";
+	},
+	hex: function(n) {
+		return this.hexChars.charAt(n & 0xf);
+	}
+
+};
 
 function updateGUI() {
 	gfx.reqAnimationFrame();
-	if (!gfx.backgroundImg) gfx.updateImage("vgmcol.jpg");		
 	gfx.redrawSongInfo();
 }
 
@@ -332,7 +351,6 @@ function init() {
 	document.getElementById("gain").onchange = function(e){
 		audio.gainNode.gain.value= this.value/255;
 	};
-
 	audio.playNextSong();
 }
 

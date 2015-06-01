@@ -641,8 +641,8 @@ char* FindFile(const char* FileName)
 INLINE UINT16 ReadLE16(const UINT8* Data)
 {
 	// read 16-Bit Word (Little Endian/Intel Byte Order)
-#ifndef VGM_BIG_ENDIAN
-	return *(UINT16*)Data;	// FIXME EMSCRIPTEN: Data might be unaligned! (we use VGM_BIG_ENDIAN.. so what?)
+#if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
+	return *(UINT16*)Data;
 #else
 	return (Data[0x01] << 8) | (Data[0x00] << 0);
 #endif
@@ -651,20 +651,18 @@ INLINE UINT16 ReadLE16(const UINT8* Data)
 INLINE UINT16 ReadBE16(const UINT8* Data)
 {
 	// read 16-Bit Word (Big Endian/Motorola Byte Order)
-#ifndef VGM_BIG_ENDIAN
+#if !defined(VGM_BIG_ENDIAN) || defined(EMSCRIPTEN)
 	return (Data[0x00] << 8) | (Data[0x01] << 0);
 #else
-//	return *(UINT16*)Data;	// XXXX FIXME EMSCRIPTEN: Data might be unaligned!
-	return (Data[0x01] << 8) | (Data[0x00] << 0);
+	return *(UINT16*)Data;	
 #endif
 }
 
 INLINE UINT32 ReadLE24(const UINT8* Data)
 {
 	// read 24-Bit Word (Little Endian/Intel Byte Order)
-#ifndef VGM_BIG_ENDIAN
+#if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
 	return	(*(UINT32*)Data) & 0x00FFFFFF;	// FIXME EMSCRIPTEN: Data might also be unaligned!
-//	return	(Data[0x00] << 16) | (Data[0x01] <<  8) | (Data[0x02] <<  0);
 #else
 	return	(Data[0x02] << 16) | (Data[0x01] <<  8) | (Data[0x00] <<  0);
 #endif
@@ -673,10 +671,8 @@ INLINE UINT32 ReadLE24(const UINT8* Data)
 INLINE UINT32 ReadLE32(const UINT8* Data)
 {
 	// read 32-Bit Word (Little Endian/Intel Byte Order)
-#ifndef VGM_BIG_ENDIAN
-	return	*(UINT32*)Data;	// FIXME EMSCRIPTEN: Data might be unaligned!
-//	return	(Data[0x00] << 24) | (Data[0x01] << 16) |
-//			(Data[0x02] <<  8) | (Data[0x03] <<  0);
+#if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
+	return	*(UINT32*)Data;
 #else
 	return	(Data[0x03] << 24) | (Data[0x02] << 16) |
 			(Data[0x01] <<  8) | (Data[0x00] <<  0);
@@ -685,7 +681,7 @@ INLINE UINT32 ReadLE32(const UINT8* Data)
 
 INLINE int gzgetLE16(gzFile hFile, UINT16* RetValue)
 {
-#ifndef VGM_BIG_ENDIAN
+#if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
 	return gzread(hFile, RetValue, 0x02);
 #else
 	int RetVal;
@@ -699,7 +695,7 @@ INLINE int gzgetLE16(gzFile hFile, UINT16* RetValue)
 
 INLINE int gzgetLE32(gzFile hFile, UINT32* RetValue)
 {
-#ifndef VGM_BIG_ENDIAN
+#if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
 	return gzread(hFile, RetValue, 0x04);
 #else
 	int RetVal;
