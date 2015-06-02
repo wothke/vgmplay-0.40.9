@@ -7,9 +7,7 @@ setlocal enabledelayedexpansion
 SET ERRORLEVEL
 VERIFY > NUL
 
-set "OPT=  -Wcast-align -fno-strict-aliasing -s VERBOSE=0 -s SAFE_HEAP=0 -s DISABLE_EXCEPTION_CATCHING=0 -DENABLE_ALL_CORES -DVGM_BIG_ENDIAN -DFM_EMU -DADDITIONAL_FORMATS -DSET_CONSOLE_TITLE -DDISABLE_HW_SUPPORT -DNO_DEBUG_LOGS  -DBLOODY_HACK -DBOOST_NO_RTTI -DBOOST_SYSTEM_NO_DEPRECATED -DNO_L10N -DBOOST_ERROR_CODE_HEADER_ONLY -Wno-pointer-sign -I. -I.. -I../3rdParty/zlib/ -I../src/  -Os  -O3 "
-
-rem -Dvsnprintf=_vsnprintf 
+set "OPT=  -Wcast-align -fno-strict-aliasing -s VERBOSE=0 -s SAFE_HEAP=0 -s NO_EXIT_RUNTIME=1 -s DISABLE_EXCEPTION_CATCHING=1 -DENABLE_ALL_CORES -DVGM_BIG_ENDIAN -DFM_EMU -DADDITIONAL_FORMATS -DSET_CONSOLE_TITLE -DDISABLE_HW_SUPPORT -DNO_DEBUG_LOGS  -Wno-pointer-sign -I. -I.. -I../3rdParty/zlib/ -I../src/  -Os  -O3 "
 
 if not exist "built/thirdparty.bc" (
 	call emcc.bat %OPT%  ../3rdParty/zlib/adler32.c ../3rdParty/zlib/compress.c ../3rdParty/zlib/crc32.c ../3rdParty/zlib/gzio.c ../3rdParty/zlib/uncompr.c ../3rdParty/zlib/deflate.c ../3rdParty/zlib/trees.c ../3rdParty/zlib/zutil.c ../3rdParty/zlib/inflate.c ../3rdParty/zlib/infback.c ../3rdParty/zlib/inftrees.c ../3rdParty/zlib/inffast.c -o built/thirdparty.bc

@@ -221,8 +221,6 @@ Graphix = function(audio) {
 	this.lastRenderTime=0;
 	this.worstRenderTime=0;
 	
-	this.timeLimit= 1000/60*0.1;	// renderiung should take no longer than 10% of the available time (e.g. 3-4 millis per frame)
-	
 	this.canvasSpectrum = document.getElementById('spectrumCanvas');
 	this.ctxSpectrum = this.canvasSpectrum.getContext('2d');
 	this.canvasSpectrum.width = this.WIDTH;
@@ -241,15 +239,14 @@ Graphix.prototype = {
 		window.requestAnimationFrame(this.redrawSpectrum.bind(this));
 	},
 	redrawSpectrum: function() {
-		this.reqAnimationFrame();		
+		this.reqAnimationFrame();
 		
-		// with low enough load the browser should be able to render 60fps: the load from the music generation
-		// cannot be changed but the load from the rendering can..
-		this.worstRenderTime= Math.max(this.worstRenderTime, this.lastRenderTime);
-
-		this.lastRenderTime= new Date().getTime();	// start new measurement
-
-		var slowdownFactor= Math.max(1, this.worstRenderTime/this.timeLimit);
+		// limit the CPU load caused my the graphics..
+		this.worstRenderTime= Math.max(this.worstRenderTime*0.7,(this.lastRenderTime ? new Date().getTime()-this.lastRenderTime : 0));
+		this.lastRenderTime= new Date().getTime();
+		
+		var fullSpeedLimit= 1000/60;	// render time limit in ms that still allows to refresh every time
+		var slowdownFactor= Math.max(1, this.worstRenderTime/fullSpeedLimit);
 		this.refreshCounter++;
 
 		if (this.refreshCounter >= slowdownFactor) {
@@ -291,8 +288,7 @@ Graphix.prototype = {
 				this.mozReflectSpectrum.style.visibility = "hidden";
 				this.mozReflectSpectrum.style.visibility = "visible";
 			}
-		}		
-		this.lastRenderTime= new Date().getTime()-this.lastRenderTime;
+		}
 	},
 	text: function(ctx, text, x, y) {
 		ctx.strokeText(text, x, y);
