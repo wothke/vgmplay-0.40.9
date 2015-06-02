@@ -56,7 +56,7 @@ SamplePlayer = function(bp, onEnd, onUpdate) {
 		window.AudioContext = window.AudioContext||window.webkitAudioContext;
 		this.sampleRate = new AudioContext().sampleRate;
 
-		this.inputSampleRate= 48000;	// FIXME: directly set rate used by WebAudio and avoid resampling..
+		this.inputSampleRate= 48000;	// default will we overwritten later
 		this.SAMPLES_PER_BUFFER = 8192;
 		
 		this.resampleBuffer= new Float32Array(Math.round(this.SAMPLES_PER_BUFFER*this.sampleRate/this.inputSampleRate) * 2);
@@ -219,21 +219,35 @@ SamplePlayer.prototype = {
 			var ret = Module.ccall('emu_init', 'number', 
 								['number', 'string', 'string'], 
 								[this.sampleRate, path, fn]);
+
+			if (ret == 0) {			
+				this.inputSampleRate = Module.ccall('emu_get_sample_rate', 'number');
+				this.resetSampleRate();
+			}
 			
 			return ret;
 		}
 	},
-	getResampledAudio: function(srcBufI16, len) {	
-		var resampleLen= Math.round(len * this.sampleRate / this.inputSampleRate);	// for each of the 2 channels
-		var bufSize= resampleLen << 1;
+	getResampledAudio: function(srcBufI16, len) {
+		if (this.sampleRate == this.inputSampleRate) {
+			var i;
+			for(i= 0; i<len*2; i++){ // just copy the rescaled values so there is no need for special handling in playback loop
+				this.resampleBuffer[i]= (Module.HEAP16[srcBufI16+i] << 16)/0x7fffffff;
+			}		
+			return len;
+		} else {
 		
-		if (bufSize > this.resampleBuffer.length) this.resampleBuffer= new Float32Array(bufSize);
-		
-		// resample the two interleaved channels
-		this.resampleChannel(0, srcBufI16, len, resampleLen);
-		this.resampleChannel(1, srcBufI16, len, resampleLen);
-		
-		return resampleLen;
+			var resampleLen= Math.round(len * this.sampleRate / this.inputSampleRate);	// for each of the 2 channels
+			var bufSize= resampleLen << 1;
+			
+			if (bufSize > this.resampleBuffer.length) this.resampleBuffer= new Float32Array(bufSize);
+			
+			// resample the two interleaved channels
+			this.resampleChannel(0, srcBufI16, len, resampleLen);
+			this.resampleChannel(1, srcBufI16, len, resampleLen);
+			
+			return resampleLen;
+		}
 	},
 	resampleChannel: function(channelId, srcBufI16, len, resampleLen) {
 		// Bresenham algorithm based resampling
@@ -262,18 +276,17 @@ SamplePlayer.prototype = {
 	resetSampleRate: function() {
 		if (this.newSampleRate > 0) {
 			this.sampleRate= this.newSampleRate;
-						
-			var s= Math.round(this.SAMPLES_PER_BUFFER *this.sampleRate/this.inputSampleRate) *2;
-			
-			if (s > this.resampleBuffer.length)
-				this.resampleBuffer= new Float32Array(s);
-				
-			this.numberOfSamplesRendered= 0;
-			this.numberOfSamplesToRender= 0;
-			this.sourceBufferIdx=0;
-			
 			this.newSampleRate= -1;
 		}
+	
+		var s= Math.round(this.SAMPLES_PER_BUFFER *this.sampleRate/this.inputSampleRate) *2;
+		
+		if (s > this.resampleBuffer.length)
+			this.resampleBuffer= new Float32Array(s);
+			
+		this.numberOfSamplesRendered= 0;
+		this.numberOfSamplesToRender= 0;
+		this.sourceBufferIdx=0;	
 	},
 	updateTrackInfos: function(filename) {
 		ret = Module.ccall('emu_get_track_info', 'number');

@@ -53,6 +53,7 @@ extern bool IsEndPlay_Emscripten(void);
 extern UINT32 FillBuffer_Emscripten(WAVE_16BS* Buffer, UINT32 BufferSize);
 
 extern GD3_TAG VGMTag;
+extern UINT32 SampleRate;
 extern bool EndPlay;
 extern UINT8 FileMode;
 extern UINT8 BoostVolume;
@@ -117,12 +118,21 @@ extern EMSCRIPTEN_KEEPALIVE int emu_init(int sample_rate, char *basedir, char *s
 	VGMPlay_Init();
 	snprintf(ini_file, TEXT_MAX, "VGMPlay.ini");
 	ReadOptions(ini_file);
+	
+	SampleRate = sample_rate;	// override whatever may be hardcoded in the config.. by using what is needed by WebAudio later resampling is avoided
+	
 	VGMPlay_Init2();
 		
 	snprintf(music_file, TEXT_MAX, "%s/%s", basedir, songmodule);
 	if(!OpenVGMFile(music_file))
 		return -1;
 	return 0;
+}
+
+extern int emu_get_sample_rate() __attribute__((noinline));
+extern EMSCRIPTEN_KEEPALIVE int emu_get_sample_rate()
+{
+	return SampleRate;
 }
 
 extern void emu_set_subsong(int subsong, int boostVolume) __attribute__((noinline));

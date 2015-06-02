@@ -217,6 +217,10 @@ Graphix = function(audio) {
 	this.WIDTH= 800;
 	this.HEIGHT= 200;
 	
+	this.refreshCounter=0;
+	this.lastRenderTime=0;
+	this.worstRenderTime=0;
+	
 	this.canvasSpectrum = document.getElementById('spectrumCanvas');
 	this.ctxSpectrum = this.canvasSpectrum.getContext('2d');
 	this.canvasSpectrum.width = this.WIDTH;
@@ -236,43 +240,55 @@ Graphix.prototype = {
 	},
 	redrawSpectrum: function() {
 		this.reqAnimationFrame();
-
-		if (this.freqByteData == 0)
-			this.freqByteData = new Uint8Array(this.audio.analyzerNode.frequencyBinCount);	
 		
-		this.audio.analyzerNode.getByteFrequencyData(this.freqByteData);
-
-		var SPACER_WIDTH = 10;
-		var BAR_WIDTH = 5;
-		var OFFSET = 100;
-		var patternHeight= 9;	
-		var patternWidth= 295;	
+		// limit the CPU load caused my the graphics..
+		this.worstRenderTime= Math.max(this.worstRenderTime*0.7,(this.lastRenderTime ? new Date().getTime()-this.lastRenderTime : 0));
+		this.lastRenderTime= new Date().getTime();
 		
-		var numBars = Math.round(this.WIDTH / SPACER_WIDTH);
+		var fullSpeedLimit= 1000/60;	// render time limit in ms that still allows to refresh every time
+		var slowdownFactor= Math.max(1, this.worstRenderTime/fullSpeedLimit);
+		this.refreshCounter++;
 
-		this.ctxSpectrum.clearRect(0, 0, this.WIDTH, this.HEIGHT);
-
-		this.ctxSpectrum.fillStyle = '#fe5139';
-		this.ctxSpectrum.lineCap = 'round';
-		
-		for (var i = 0; i < numBars; ++i) {
-			var scale= this.freqByteData[i + OFFSET]/0xff;
-			var magnitude = scale*this.HEIGHT;
-			x=i/numBars*500;
-
-			var yellow= 0xf4cb25;
-			var red= 0xef210a;
-			var blue= 0x1b1088;
-			var purple= 0x630f64;
-			var cols= [yellow, red, purple, blue, blue];
+		if (this.refreshCounter >= slowdownFactor) {
+			this.refreshCounter= 0;
 			
-			this.ctxSpectrum.fillStyle = this.colorGradient(cols,i/numBars);	// computationally much less expensive than previous impl with use of a scaled image
-			this.ctxSpectrum.fillRect(i * SPACER_WIDTH, this.HEIGHT- magnitude, BAR_WIDTH, 30*(scale*1.4));
+			if (this.freqByteData == 0)
+				this.freqByteData = new Uint8Array(this.audio.analyzerNode.frequencyBinCount);	
+			
+			this.audio.analyzerNode.getByteFrequencyData(this.freqByteData);
 
-			// hack: make sure dumb Firefox knows that redraw is needed..
-			this.mozReflectSpectrum.style.visibility = "hidden";
-			this.mozReflectSpectrum.style.visibility = "visible";
-		}	
+			var SPACER_WIDTH = 10;
+			var BAR_WIDTH = 5;
+			var OFFSET = 100;
+			var patternHeight= 9;	
+			var patternWidth= 295;	
+			
+			var numBars = Math.round(this.WIDTH / SPACER_WIDTH);
+
+			this.ctxSpectrum.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+
+			this.ctxSpectrum.fillStyle = '#fe5139';
+			this.ctxSpectrum.lineCap = 'round';
+			
+			for (var i = 0; i < numBars; ++i) {
+				var scale= this.freqByteData[i + OFFSET]/0xff;
+				var magnitude = scale*this.HEIGHT;
+				x=i/numBars*500;
+
+				var yellow= 0xf4cb25;
+				var red= 0xef210a;
+				var blue= 0x1b1088;
+				var purple= 0x630f64;
+				var cols= [yellow, red, purple, blue, blue];
+				
+				this.ctxSpectrum.fillStyle = this.colorGradient(cols,i/numBars);	// computationally much less expensive than previous impl with use of a scaled image
+				this.ctxSpectrum.fillRect(i * SPACER_WIDTH, this.HEIGHT- magnitude, BAR_WIDTH, 30*(scale*1.4));
+
+				// hack: make sure dumb Firefox knows that redraw is needed..
+				this.mozReflectSpectrum.style.visibility = "hidden";
+				this.mozReflectSpectrum.style.visibility = "visible";
+			}
+		}
 	},
 	text: function(ctx, text, x, y) {
 		ctx.strokeText(text, x, y);
@@ -321,7 +337,6 @@ Graphix.prototype = {
 		var b= Math.round(b1+((to & 0xff)-b1)*s);
 	
 		return "#" +this.hex(r>>4) +this.hex(r) +this.hex(g>>4) +this.hex(g) +this.hex(b>>4) +this.hex(b);
-		// return "rgb("+r+", "+g+", "+b")";
 	},
 	hex: function(n) {
 		return this.hexChars.charAt(n & 0xf);
