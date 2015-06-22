@@ -57,6 +57,21 @@ extern UINT32 SampleRate;
 extern bool EndPlay;
 extern UINT8 FileMode;
 extern UINT8 BoostVolume;
+extern VGM_HEADER VGMHead;
+extern INT32 VGMSmplPlayed;
+extern UINT32 VGMPos;
+extern UINT32 VGMMaxLoopM;
+extern UINT32 VGMCurLoop;
+extern UINT32 PlayingTime;
+
+extern void SeekVGM(bool Relative, INT32 PlayBkSamples);
+extern INT32 SampleVGM2Playback(INT32 SampleVal);
+extern UINT32 CalcSampleMSec(UINT64 Value, UINT8 Mode);
+extern UINT32 CalcSampleMSecExt(UINT64 Value, UINT8 Mode, VGM_HEADER* FileHead);
+
+extern UINT32 FadeTime;
+extern UINT32 PauseTime;
+
 
 // reuse utils from original UI
 extern void ReadOptions(const char* filename);
@@ -135,11 +150,12 @@ extern EMSCRIPTEN_KEEPALIVE int emu_get_sample_rate()
 	return SampleRate;
 }
 
-extern void emu_set_subsong(int subsong, int boostVolume) __attribute__((noinline));
-extern void EMSCRIPTEN_KEEPALIVE emu_set_subsong(int subsong, int boostVolume) {
+extern int emu_set_subsong(int subsong, int boostVolume) __attribute__((noinline));
+extern int EMSCRIPTEN_KEEPALIVE emu_set_subsong(int subsong, int boostVolume) {
 	PlayVGM();
 	
 	BoostVolume= boostVolume;	// hack to force louder playback
+	return 0;
 }
 
 
@@ -174,6 +190,53 @@ extern long EMSCRIPTEN_KEEPALIVE emu_get_audio_buffer_length(void) __attribute__
 extern long EMSCRIPTEN_KEEPALIVE emu_get_audio_buffer_length(void) {
 	return samples_available;
 }
+
+int GetFileLength(VGM_HEADER* FileHead)
+{
+	UINT32 SmplCnt;
+	UINT32 MSecCnt;
+	
+	if (! VGMMaxLoopM && FileHead->lngLoopSamples)
+		return -1000;
+	
+	// Note: SmplCnt is ALWAYS 44.1 KHz, VGM's native sample rate
+	SmplCnt = FileHead->lngTotalSamples + FileHead->lngLoopSamples * (VGMMaxLoopM - 0x01);
+	
+	return SmplCnt;
+	/*
+	if (FileHead == &VGMHead)
+		MSecCnt = CalcSampleMSec(SmplCnt, 0x02);
+	else
+		MSecCnt = CalcSampleMSecExt(SmplCnt, 0x02, FileHead);
+	
+	if (FileHead->lngLoopSamples)
+		MSecCnt += FadeTime + PauseTime;
+	else
+		MSecCnt += PauseTime;
+	
+	return (MSecCnt/1000)*SampleRate;
+	*/
+}
+
+extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) __attribute__((noinline));
+extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) {
+	return SampleVGM2Playback(GetFileLength(&VGMHead));
+}
+
+extern int EMSCRIPTEN_KEEPALIVE emu_seek_position(INT32 pos) __attribute__((noinline));
+extern int EMSCRIPTEN_KEEPALIVE emu_seek_position(INT32 pos) {
+	if (pos > emu_get_max_position()) {
+		return -1;
+	}
+	SeekVGM(false, pos);
+	return 0;
+}
+
+extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_position(void) __attribute__((noinline));
+extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_position(void) {
+	return PlayingTime;
+}
+
 
 extern int emu_compute_audio_samples() __attribute__((noinline));
 extern int EMSCRIPTEN_KEEPALIVE emu_compute_audio_samples() {

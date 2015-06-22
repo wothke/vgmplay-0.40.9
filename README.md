@@ -21,7 +21,10 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
 */
 
-This is a JavaScript/WebAudio version of vgmPlay: It allows to play various Arcade and Console game music files (see VGMPlay.txt for more details)  - formats like: Video Game Music Files (*.vgm, *.vgz), Creative Music Files (*.cmf), DosBox RAW OPL Log Files (*.dro) - directly in some WebAudio enabled web browser. The player does not support archives but only individual music files. (Respective music files can be found on pages like these: http://vgmrips.net/packs/, http://www.smspower.org/Music/VGMs, etc)
+This is a JavaScript/WebAudio plugin of vgmPlay. This plugin is designed to work with version 1.0 of my 
+generic WebAudio ScriptProcessor music player (see separate project). 
+
+It allows to play various Arcade and Console game music files (see VGMPlay.txt for more details)  - formats like: Video Game Music Files (*.vgm, *.vgz), Creative Music Files (*.cmf), DosBox RAW OPL Log Files (*.dro) - directly in some WebAudio enabled web browser. The plugin does not support archives but only individual music files. (Respective music files can be found on pages like these: http://vgmrips.net/packs/, http://www.smspower.org/Music/VGMs, etc)
 
 A live demo of this program can be found here: http://www.wothke.ch/webvgm/
 

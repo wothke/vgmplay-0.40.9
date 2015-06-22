@@ -1,10 +1,16 @@
 // includes all chip-headers
 
 #include "sn764intf.h"
+
+#ifndef STRIPPED_VGM		
 #include "2413intf.h"
+#endif
 #include "2612intf.h"
+#ifndef STRIPPED_VGM		
 #include "2151intf.h"
+#endif
 #include "segapcm.h"
+#ifndef STRIPPED_VGM		
 #include "rf5c68.h"
 #include "2203intf.h"
 #include "2608intf.h"
@@ -16,13 +22,17 @@
 #include "ymz280b.h"
 #include "ymf271.h"
 #include "ymf278b.h"
+#endif
 #include "scd_pcm.h"
 #include "pwm.h"
+#ifndef STRIPPED_VGM		
 #include "ay_intf.h"
 #include "dac_control.h"
 #include "gb.h"
 #include "nes_intf.h"
+#endif
 #include "multipcm.h"
+#ifndef STRIPPED_VGM		
 #include "upd7759.h"
 #include "okim6258.h"
 #include "okim6295.h"
@@ -34,3 +44,4 @@
 #include "pokey.h"
 #include "qsound.h"
 #include "scsp.h"
+#endif

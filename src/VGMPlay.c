@@ -2336,6 +2336,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 		
 		// Initialize Sound Chips
 		AbsVol = 0x00;
+		
 		if (VGMHead.lngHzPSG)
 		{
 			//ChipVol = UseFM ? 0x00 : 0x80;
@@ -2384,6 +2385,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 			if (VGMHead.lngHzPSG & 0x80000000)
 				ChipCnt = 0x01;
 		}
+#ifndef STRIPPED_VGM		
 		if (VGMHead.lngHzYM2413)
 		{
 			//ChipVol = UseFM ? 0x00 : 0x200/*0x155*/;
@@ -2419,6 +2421,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				}
 			}
 		}
+#endif
 		if (VGMHead.lngHzYM2612)
 		{
 			//ChipVol = 0x100;
@@ -2441,6 +2444,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume;
 			}
 		}
+#ifndef STRIPPED_VGM		
 		if (VGMHead.lngHzYM2151)
 		{
 			//ChipVol = 0x100;
@@ -2750,6 +2754,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += (CAA->Volume * 0x20 / 0x13);
 			}
 		}
+#endif		
 		if (VGMHead.lngHzRF5C164)
 		{
 			//ChipVol = 0x80;
@@ -2784,6 +2789,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume;
 			}
 		}
+#ifndef STRIPPED_VGM		
 		if (VGMHead.lngHzAY8910)
 		{
 			//ChipVol = 0x100;
@@ -2860,6 +2866,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume * 2;
 			}
 		}
+#endif
 		if (VGMHead.lngHzMultiPCM)
 		{
 			//ChipVol = 0x40;
@@ -2877,6 +2884,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume * 4;
 			}
 		}
+#ifndef STRIPPED_VGM		
 		if (VGMHead.lngHzUPD7759)
 		{
 			//ChipVol = 0x11E;
@@ -3082,7 +3090,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume;
 			}
 		}
-		
+#endif		
 		// Initialize DAC Control and PCM Bank
 		DacCtrlUsed = 0x00;
 		//memset(DacCtrlUsg, 0x00, 0x01 * 0xFF);
@@ -3150,10 +3158,13 @@ static void Chips_GeneralActions(UINT8 Mode)
 				continue;
 			else if (CAA->ChipType == 0x00 && ! UseFM)
 				device_reset_sn764xx(CurCSet);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x01 && ! UseFM)
 				device_reset_ym2413(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x02)
 				device_reset_ym2612(CurCSet);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x03)
 				device_reset_ym2151(CurCSet);
 			else if (CAA->ChipType == 0x04)
@@ -3201,18 +3212,22 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_reset_ymf271(CurCSet);
 			else if (CAA->ChipType == 0x0F)
 				device_reset_ymz280b(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x10)
 				device_reset_rf5c164(CurCSet);
 			else if (CAA->ChipType == 0x11)
 				device_reset_pwm(CurCSet);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x12 && ! UseFM)
 				device_reset_ayxx(CurCSet);
 			else if (CAA->ChipType == 0x13)
 				device_reset_gameboy_sound(CurCSet);
 			else if (CAA->ChipType == 0x14)
 				device_reset_nes(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x15)
 				device_reset_multipcm(CurCSet);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				device_reset_upd7759(CurCSet);
 			else if (CAA->ChipType == 0x17)
@@ -3247,6 +3262,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_reset_qsound(CurCSet);
 			else if (CAA->ChipType == 0x20)
 				device_reset_scsp(CurCSet);
+#endif
 		}	// end for CurChip
 		
 		}	// end for CurCSet
@@ -3283,10 +3299,13 @@ static void Chips_GeneralActions(UINT8 Mode)
 				continue;
 			else if (CAA->ChipType == 0x00 && ! UseFM)
 				device_stop_sn764xx(CurCSet);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x01 && ! UseFM)
 				device_stop_ym2413(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x02)
 				device_stop_ym2612(CurCSet);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x03)
 				device_stop_ym2151(CurCSet);
 			else if (CAA->ChipType == 0x04)
@@ -3313,18 +3332,22 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_stop_ymf271(CurCSet);
 			else if (CAA->ChipType == 0x0F)
 				device_stop_ymz280b(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x10)
 				device_stop_rf5c164(CurCSet);
 			else if (CAA->ChipType == 0x11)
 				device_stop_pwm(CurCSet);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x12 && ! UseFM)
 				device_stop_ayxx(CurCSet);
 			else if (CAA->ChipType == 0x13)
 				device_stop_gameboy_sound(CurCSet);
 			else if (CAA->ChipType == 0x14)
 				device_stop_nes(CurCSet);
+#endif
 			else if (CAA->ChipType == 0x15)
 				device_stop_multipcm(CurCSet);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				device_stop_upd7759(CurCSet);
 			else if (CAA->ChipType == 0x17)
@@ -3347,7 +3370,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_stop_qsound(CurCSet);
 			else if (CAA->ChipType == 0x20)
 				device_stop_scsp(CurCSet);
-			
+#endif			
 			CAA->ChipType = 0xFF;	// mark as "unused"
 		}	// end for CurChip
 		
@@ -3381,10 +3404,13 @@ static void Chips_GeneralActions(UINT8 Mode)
 				continue;
 			else if (CAA->ChipType == 0x00 && ! UseFM)
 				sn764xx_set_mute_mask(CurCSet, ChipOpts[CurCSet].SN76496.ChnMute1);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x01 && ! UseFM)
 				ym2413_set_mute_mask(CurCSet, ChipOpts[CurCSet].YM2413.ChnMute1);
+#endif
 			else if (CAA->ChipType == 0x02)
 				ym2612_set_mute_mask(CurCSet, ChipOpts[CurCSet].YM2612.ChnMute1);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x03)
 				ym2151_set_mute_mask(CurCSet, ChipOpts[CurCSet].YM2151.ChnMute1);
 			else if (CAA->ChipType == 0x04)
@@ -3421,18 +3447,22 @@ static void Chips_GeneralActions(UINT8 Mode)
 				ymf271_set_mute_mask(CurCSet, ChipOpts[CurCSet].YMF271.ChnMute1);
 			else if (CAA->ChipType == 0x0F)
 				ymz280b_set_mute_mask(CurCSet, ChipOpts[CurCSet].YMZ280B.ChnMute1);
+#endif
 			else if (CAA->ChipType == 0x10)
 				rf5c164_set_mute_mask(CurCSet, ChipOpts[CurCSet].RF5C164.ChnMute1);
 			else if (CAA->ChipType == 0x11)
 				;	// PWM - nothing to mute
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x12 && ! UseFM)
 				ayxx_set_mute_mask(CurCSet, ChipOpts[CurCSet].AY8910.ChnMute1);
 			else if (CAA->ChipType == 0x13)
 				gameboy_sound_set_mute_mask(CurCSet, ChipOpts[CurCSet].GameBoy.ChnMute1);
 			else if (CAA->ChipType == 0x14)
 				nes_set_mute_mask(CurCSet, ChipOpts[CurCSet].NES.ChnMute1);
+#endif
 			else if (CAA->ChipType == 0x15)
 				multipcm_set_mute_mask(CurCSet, ChipOpts[CurCSet].MultiPCM.ChnMute1);
+#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				;	// UPD7759 - nothing to mute
 			else if (CAA->ChipType == 0x17)
@@ -3455,6 +3485,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				qsound_set_mute_mask(CurCSet, ChipOpts[CurCSet].QSound.ChnMute1);
 			else if (CAA->ChipType == 0x20)
 				scsp_set_mute_mask(CurCSet, ChipOpts[CurCSet].SCSP.ChnMute1);
+#endif
 		}	// end for CurChip
 		
 		}	// end for CurCSet
@@ -3470,8 +3501,10 @@ static void Chips_GeneralActions(UINT8 Mode)
 				continue;
 			else if (CAA->ChipType == 0x00 && ! UseFM)
 				sn764xx_set_panning(CurCSet, ChipOpts[CurCSet].SN76496.Panning);
+#ifndef STRIPPED_VGM				
 			else if (CAA->ChipType == 0x01 && ! UseFM)
 				ym2413_set_panning(CurCSet, ChipOpts[CurCSet].YM2413.Panning);
+#endif
 		}	// end for CurChip
 		
 		}	// end for CurCSet
@@ -4309,6 +4342,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					CurChip = 0x01;
 				}
 				break;
+#ifndef STRIPPED_VGM		
 			case 0xA1:
 				if (VGMHead.lngHzYM2413 & 0x40000000)
 				{
@@ -4316,6 +4350,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					CurChip = 0x01;
 				}
 				break;
+#endif
 			case 0xA2:
 			case 0xA3:
 				if (VGMHead.lngHzYM2612 & 0x40000000)
@@ -4324,6 +4359,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					CurChip = 0x01;
 				}
 				break;
+#ifndef STRIPPED_VGM		
 			case 0xA4:
 				if (VGMHead.lngHzYM2151 & 0x40000000)
 				{
@@ -4390,6 +4426,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					CurChip = 0x01;
 				}
 				break;
+#endif
 			}
 			
 			switch(Command)
@@ -4453,6 +4490,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x02;
 				break;
+#ifndef STRIPPED_VGM		
 			case 0x51:	// YM2413 write
 				if (CHIP_CHECK(YM2413))
 				{
@@ -4460,6 +4498,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x03;
 				break;
+#endif
 			case 0x52:	// YM2612 write port 0
 			case 0x53:	// YM2612 write port 1
 				if (CHIP_CHECK(YM2612))
@@ -4502,6 +4541,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					ROMData = &VGMPnt[0x0F];
 					switch(TempByt)
 					{
+#ifndef STRIPPED_VGM		
 					case 0x80:	// SegaPCM ROM
 						if (! CHIP_CHECK(SegaPCM))
 							break;
@@ -4546,11 +4586,13 @@ static void InterpretVGM(UINT32 SampleCount)
 							break;
 						y8950_write_data_pcmrom(CurChip, ROMSize, DataStart, DataLen, ROMData);
 						break;
+#endif
 					case 0x89:	// MultiPCM ROM Image
 						if (! CHIP_CHECK(MultiPCM))
 							break;
 						multipcm_write_rom(CurChip, ROMSize, DataStart, DataLen, ROMData);
 						break;
+#ifndef STRIPPED_VGM		
 					case 0x8A:	// UPD7759 ROM Image
 						if (! CHIP_CHECK(UPD7759))
 							break;
@@ -4581,6 +4623,7 @@ static void InterpretVGM(UINT32 SampleCount)
 							break;
 						qsound_write_rom(CurChip, ROMSize, DataStart, DataLen, ROMData);
 						break;
+#endif
 				//	case 0x8C:	// OKIM6376 ROM Image
 				//		if (! CHIP_CHECK(OKIM6376))
 				//			break;
@@ -4602,16 +4645,19 @@ static void InterpretVGM(UINT32 SampleCount)
 					}
 					switch(TempByt)
 					{
+#ifndef STRIPPED_VGM		
 					case 0xC0:	// RF5C68 RAM Database
 						if (! CHIP_CHECK(RF5C68))
 							break;
 						rf5c68_write_ram(CurChip, DataStart, DataLen, ROMData);
 						break;
+#endif					
 					case 0xC1:	// RF5C164 RAM Database
 						if (! CHIP_CHECK(RF5C164))
 							break;
 						rf5c164_write_ram(CurChip, DataStart, DataLen, ROMData);
 						break;
+#ifndef STRIPPED_VGM		
 					case 0xC2:	// NES APU RAM
 						if (! CHIP_CHECK(NES))
 							break;
@@ -4622,6 +4668,7 @@ static void InterpretVGM(UINT32 SampleCount)
 							break;
 						scsp_write_ram(CurChip, DataStart, DataLen, ROMData);
 						break;
+#endif					
 					}
 					break;
 				}
@@ -4638,6 +4685,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x02;
 				break;
+#ifndef STRIPPED_VGM		
 			case 0x54:	// YM2151 write
 				if (CHIP_CHECK(YM2151))
 				{
@@ -4745,6 +4793,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x04;
 				break;
+#endif
 			case 0xB1:	// RF5C164 register write
 				if (CHIP_CHECK(RF5C164))
 				{
@@ -4786,16 +4835,19 @@ static void InterpretVGM(UINT32 SampleCount)
 				
 				switch(TempByt)
 				{
+#ifndef STRIPPED_VGM		
 				case 0x01:
 					if (! CHIP_CHECK(RF5C68))
 						break;
 					rf5c68_write_ram(CurChip, TempLng, DataLen, ROMData);
 					break;
+#endif
 				case 0x02:
 					if (! CHIP_CHECK(RF5C164))
 						break;
 					rf5c164_write_ram(CurChip, TempLng, DataLen, ROMData);
 					break;
+#ifndef STRIPPED_VGM		
 				case 0x06:
 					if (! CHIP_CHECK(SCSP))
 						break;
@@ -4808,9 +4860,11 @@ static void InterpretVGM(UINT32 SampleCount)
 					Last95Max = PCMBank[TempByt].DataSize / DataLen;
 					nes_write_ram(CurChip, TempLng, DataLen, ROMData);
 					break;
+#endif
 				}
 				VGMPos += 0x0C;
 				break;
+#ifndef STRIPPED_VGM		
 			case 0xA0:	// AY8910 write
 				CurChip = (VGMPnt[0x01] & 0x80) >> 7;
 				if (CHIP_CHECK(AY8910))
@@ -4835,6 +4889,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x03;
 				break;
+#endif
 			case 0xB5:	// MultiPCM write
 				CurChip = (VGMPnt[0x01] & 0x80) >> 7;
 				if (CHIP_CHECK(MultiPCM))
@@ -4852,6 +4907,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x04;
 				break;
+#ifndef STRIPPED_VGM		
 			case 0xB6:	// UPD7759 write
 				CurChip = (VGMPnt[0x01] & 0x80) >> 7;
 				if (CHIP_CHECK(UPD7759))
@@ -5069,6 +5125,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				daccontrol_start(CurChip, TempBnk->DataStart, TempByt, TempBnk->DataSize);
 				VGMPos += 0x05;
 				break;
+#endif
 			default:
 #ifdef CONSOLE_MODE
 				if (! CmdList[Command])

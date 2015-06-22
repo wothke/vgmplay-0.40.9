@@ -283,6 +283,7 @@ void open_real_fm(void)
 				}
 			}
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x01:	// YM2413
 			switch(YM2413_EMU_CORE)
 			{
@@ -306,6 +307,7 @@ void open_real_fm(void)
 			break;
 		case 0x12:	// AY8910
 			start_ay8910_opl(CurMap->ChipID, CurMap->ChipOpt[0x00], CurMap->ChipOpt[0x01]);
+#endif
 			break;
 		}
 	}
@@ -369,6 +371,7 @@ void setup_real_fm(UINT8 ChipType, UINT8 ChipID)
 			}
 		}
 		break;
+#ifndef STRIPPED_VGM		
 	case 0x01:	// YM2413
 		CurMap->RegBase = 0x00;
 		CurMap->ChnBase = 0x00;
@@ -427,6 +430,7 @@ void setup_real_fm(UINT8 ChipType, UINT8 ChipID)
 		CurMap->ChnBase = 0x00;
 		break;
 	}
+#endif
 	ChipCount ++;
 #endif	// DISABLE_HW_SUPPORT
 	
@@ -538,20 +542,25 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x00:	// SN76496
 			sn764xx_w(ChipID, Port, Data);
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x01:	// YM2413
 			ym2413_w(ChipID, 0x00, Offset);
 			ym2413_w(ChipID, 0x01, Data);
 			break;
+#endif
 		case 0x02:	// YM2612
 			ym2612_w(ChipID, (Port << 1) | 0x00, Offset);
 			ym2612_w(ChipID, (Port << 1) | 0x01, Data);
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x03:	// YM2151
 			ym2151_w(ChipID, 0x00, Offset);
 			ym2151_w(ChipID, 0x01, Data);
 			break;
+#endif
 		case 0x04:	// SegaPCM
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x05:	// RF5C68
 			rf5c68_w(ChipID, Offset, Data);
 			break;
@@ -598,9 +607,11 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x10:	// RF5C164
 			rf5c164_w(ChipID, Offset, Data);
 			break;
+#endif
 		case 0x11:	// PWM
 			pwm_chn_w(ChipID, Port, (Offset << 8) | (Data << 0));
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x12:	// AY8910
 			ayxx_w(ChipID, 0x00, Offset);
 			ayxx_w(ChipID, 0x01, Data);
@@ -611,9 +622,11 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x14:	// NES APU
 			nes_w(ChipID, Offset, Data);
 			break;
+#endif
 		case 0x15:	// MultiPCM
 			multipcm_w(ChipID, Offset, Data);
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x16:	// UPD7759
 			upd7759_write(ChipID, Offset, Data);
 			break;
@@ -650,6 +663,7 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x20:	// YMF292/SCSP
 			scsp_w(ChipID, (Port << 8) | (Offset << 0), Data);
 			break;
+#endif
 //		case 0x##:	// OKIM6376
 //			break;
 		}
@@ -674,6 +688,7 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 				break;
 			}
 			break;
+#ifndef STRIPPED_VGM		
 		case 0x01:	// YM2413
 			switch(YM2413_EMU_CORE)
 			{
@@ -715,6 +730,7 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x12:	// AY8910
 			ay8910_write_opl(ChipID, Offset, Data);
 			break;
+#endif
 		}
 	}
 #endif	// DISABLE_HW_SUPPORT

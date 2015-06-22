@@ -24,6 +24,6 @@ if not exist "built/main.bc" (
 	IF !ERRORLEVEL! NEQ 0 goto :END
 )
 
-call emcc.bat %OPT% --closure 1 --llvm-lto 1 -s TOTAL_MEMORY=67108864   built/thirdparty.bc built/chips.bc built/main.bc   -s EXPORTED_FUNCTIONS="['_alloc', '_emu_init','_emu_get_sample_rate','_emu_teardown','_emu_set_subsong','_emu_get_track_info','_emu_get_audio_buffer','_emu_get_audio_buffer_length','_emu_compute_audio_samples']"  -o htdocs/vgmPlay2.html && copy /b shell-pre.js + htdocs\vgmPlay2.js + shell-post.js htdocs\vgmPlay.js && del htdocs\vgmPlay2.html && del htdocs\vgmPlay2.js
+call emcc.bat %OPT% --closure 1 --llvm-lto 1 -s TOTAL_MEMORY=67108864   built/thirdparty.bc built/chips.bc built/main.bc   -s EXPORTED_FUNCTIONS="['_alloc', '_emu_init','_emu_get_sample_rate','_emu_get_position','_emu_get_max_position','_emu_seek_position','_emu_teardown','_emu_set_subsong','_emu_get_track_info','_emu_get_audio_buffer','_emu_get_audio_buffer_length','_emu_compute_audio_samples']"  -o htdocs/vgmPlay2.html && copy /b shell-pre.js + htdocs\vgmPlay2.js + shell-post.js htdocs\vgmPlay.js && del htdocs\vgmPlay2.html && del htdocs\vgmPlay2.js  && copy /b htdocs\vgmPlay.js + vgm_adapter.js htdocs\backend_vgm.js
 
 :END
