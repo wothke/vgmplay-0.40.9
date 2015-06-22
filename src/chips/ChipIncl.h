@@ -27,12 +27,12 @@
 #include "pwm.h"
 #ifndef STRIPPED_VGM		
 #include "ay_intf.h"
+#endif
 #include "dac_control.h"
+#ifndef STRIPPED_VGM		
 #include "gb.h"
 #include "nes_intf.h"
-#endif
 #include "multipcm.h"
-#ifndef STRIPPED_VGM		
 #include "upd7759.h"
 #include "okim6258.h"
 #include "okim6295.h"

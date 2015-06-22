@@ -1158,7 +1158,7 @@ UINT32 GetGZFileLength(const char* FileName)
 		// .gz File
 		fseek(hFile, -4, SEEK_END);
 		fread(&FileSize, 0x04, 0x01, hFile);
-#ifdef VGM_BIG_ENDIAN && !defined(EMSCRIPTEN)
+#if defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
 		FileSize = ReadLE32((UINT8*)&FileSize);
 #endif
 	}
@@ -2866,7 +2866,6 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume * 2;
 			}
 		}
-#endif
 		if (VGMHead.lngHzMultiPCM)
 		{
 			//ChipVol = 0x40;
@@ -2884,7 +2883,6 @@ static void Chips_GeneralActions(UINT8 Mode)
 				AbsVol += CAA->Volume * 4;
 			}
 		}
-#ifndef STRIPPED_VGM		
 		if (VGMHead.lngHzUPD7759)
 		{
 			//ChipVol = 0x11E;
@@ -3224,10 +3222,8 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_reset_gameboy_sound(CurCSet);
 			else if (CAA->ChipType == 0x14)
 				device_reset_nes(CurCSet);
-#endif
 			else if (CAA->ChipType == 0x15)
 				device_reset_multipcm(CurCSet);
-#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				device_reset_upd7759(CurCSet);
 			else if (CAA->ChipType == 0x17)
@@ -3344,10 +3340,8 @@ static void Chips_GeneralActions(UINT8 Mode)
 				device_stop_gameboy_sound(CurCSet);
 			else if (CAA->ChipType == 0x14)
 				device_stop_nes(CurCSet);
-#endif
 			else if (CAA->ChipType == 0x15)
 				device_stop_multipcm(CurCSet);
-#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				device_stop_upd7759(CurCSet);
 			else if (CAA->ChipType == 0x17)
@@ -3459,10 +3453,8 @@ static void Chips_GeneralActions(UINT8 Mode)
 				gameboy_sound_set_mute_mask(CurCSet, ChipOpts[CurCSet].GameBoy.ChnMute1);
 			else if (CAA->ChipType == 0x14)
 				nes_set_mute_mask(CurCSet, ChipOpts[CurCSet].NES.ChnMute1);
-#endif
 			else if (CAA->ChipType == 0x15)
 				multipcm_set_mute_mask(CurCSet, ChipOpts[CurCSet].MultiPCM.ChnMute1);
-#ifndef STRIPPED_VGM		
 			else if (CAA->ChipType == 0x16)
 				;	// UPD7759 - nothing to mute
 			else if (CAA->ChipType == 0x17)
@@ -4586,13 +4578,11 @@ static void InterpretVGM(UINT32 SampleCount)
 							break;
 						y8950_write_data_pcmrom(CurChip, ROMSize, DataStart, DataLen, ROMData);
 						break;
-#endif
 					case 0x89:	// MultiPCM ROM Image
 						if (! CHIP_CHECK(MultiPCM))
 							break;
 						multipcm_write_rom(CurChip, ROMSize, DataStart, DataLen, ROMData);
 						break;
-#ifndef STRIPPED_VGM		
 					case 0x8A:	// UPD7759 ROM Image
 						if (! CHIP_CHECK(UPD7759))
 							break;
@@ -4889,7 +4879,6 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x03;
 				break;
-#endif
 			case 0xB5:	// MultiPCM write
 				CurChip = (VGMPnt[0x01] & 0x80) >> 7;
 				if (CHIP_CHECK(MultiPCM))
@@ -4907,7 +4896,6 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x04;
 				break;
-#ifndef STRIPPED_VGM		
 			case 0xB6:	// UPD7759 write
 				CurChip = (VGMPnt[0x01] & 0x80) >> 7;
 				if (CHIP_CHECK(UPD7759))
@@ -5020,6 +5008,7 @@ static void InterpretVGM(UINT32 SampleCount)
 				}
 				VGMPos += 0x04;
 				break;
+#endif
 			case 0x90:	// DAC Ctrl: Setup Chip
 				CurChip = VGMPnt[0x01];
 				if (CurChip == 0xFF)
@@ -5125,7 +5114,6 @@ static void InterpretVGM(UINT32 SampleCount)
 				daccontrol_start(CurChip, TempBnk->DataStart, TempByt, TempBnk->DataSize);
 				VGMPos += 0x05;
 				break;
-#endif
 			default:
 #ifdef CONSOLE_MODE
 				if (! CmdList[Command])
@@ -5308,7 +5296,7 @@ static void null_update(UINT8 ChipID, stream_sample_t **outputs, int samples)
 	
 	return;
 }
-
+#ifndef STRIPPED_VGM
 static void dual_opl2_stereo(UINT8 ChipID, stream_sample_t **outputs, int samples)
 {
 	ym3812_stream_update(ChipID, outputs, samples);
@@ -5321,7 +5309,7 @@ static void dual_opl2_stereo(UINT8 ChipID, stream_sample_t **outputs, int sample
 	
 	return;
 }
-
+#endif
 // I recommend 11 bits as it's fast and accurate
 #define FIXPNT_BITS		11
 #define FIXPNT_FACT		(1 << FIXPNT_BITS)

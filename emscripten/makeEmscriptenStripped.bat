@@ -15,7 +15,7 @@ if not exist "built/thirdparty.bc" (
 )
 
 if not exist "built/chips.bc" (
-	call emcc.bat %OPT% ../src/chips/panning.c ../src/chips/multipcm.c ../src/chips/ym2612.c ../src/chips/2612intf.c ../src/chips/fm2612.c  ../src/chips/pwm.c ../src/chips/scd_pcm.c  ../src/chips/sn764intf.c ../src/chips/sn76489.c ../src/chips/sn76496.c -o built/chips.bc
+	call emcc.bat %OPT% ../src/chips/panning.c ../src/chips/dac_control.c ../src/chips/multipcm.c ../src/chips/ym2612.c ../src/chips/2612intf.c ../src/chips/fm2612.c  ../src/chips/pwm.c ../src/chips/scd_pcm.c  ../src/chips/sn764intf.c ../src/chips/sn76489.c ../src/chips/sn76496.c -o built/chips.bc
 	IF !ERRORLEVEL! NEQ 0 goto :END
 )
 

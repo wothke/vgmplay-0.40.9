@@ -557,10 +557,8 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 			ym2151_w(ChipID, 0x00, Offset);
 			ym2151_w(ChipID, 0x01, Data);
 			break;
-#endif
 		case 0x04:	// SegaPCM
 			break;
-#ifndef STRIPPED_VGM		
 		case 0x05:	// RF5C68
 			rf5c68_w(ChipID, Offset, Data);
 			break;
@@ -604,10 +602,10 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 			ymz280b_w(ChipID, 0x00, Offset);
 			ymz280b_w(ChipID, 0x01, Data);
 			break;
+#endif
 		case 0x10:	// RF5C164
 			rf5c164_w(ChipID, Offset, Data);
 			break;
-#endif
 		case 0x11:	// PWM
 			pwm_chn_w(ChipID, Port, (Offset << 8) | (Data << 0));
 			break;
@@ -622,11 +620,9 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x14:	// NES APU
 			nes_w(ChipID, Offset, Data);
 			break;
-#endif
 		case 0x15:	// MultiPCM
 			multipcm_w(ChipID, Offset, Data);
 			break;
-#ifndef STRIPPED_VGM		
 		case 0x16:	// UPD7759
 			upd7759_write(ChipID, Offset, Data);
 			break;
