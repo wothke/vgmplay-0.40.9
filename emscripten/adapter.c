@@ -63,6 +63,7 @@ extern UINT32 VGMPos;
 extern UINT32 VGMMaxLoopM;
 extern UINT32 VGMCurLoop;
 extern UINT32 PlayingTime;
+extern INT32 VGMSampleRate;
 
 extern void SeekVGM(bool Relative, INT32 PlayBkSamples);
 extern INT32 SampleVGM2Playback(INT32 SampleVal);
@@ -93,7 +94,7 @@ extern const wchar_t* GetTagStrEJ(const wchar_t* EngTag, const wchar_t* JapTag);
 #define SAMPLE_BUF_SIZE	8192
 WAVE_16BS sample_buffer[SAMPLE_BUF_SIZE ];
 int samples_available= 0;
-
+INT32 max_pos= -1;
 
 char title_str[TEXT_MAX];
 char author_str[TEXT_MAX];
@@ -155,6 +156,8 @@ extern int EMSCRIPTEN_KEEPALIVE emu_set_subsong(int subsong, int boostVolume) {
 	PlayVGM();
 	
 	BoostVolume= boostVolume;	// hack to force louder playback
+	max_pos= -1;
+
 	return 0;
 }
 
@@ -194,7 +197,6 @@ extern long EMSCRIPTEN_KEEPALIVE emu_get_audio_buffer_length(void) {
 int GetFileLength(VGM_HEADER* FileHead)
 {
 	UINT32 SmplCnt;
-	UINT32 MSecCnt;
 	
 	if (! VGMMaxLoopM && FileHead->lngLoopSamples)
 		return -1000;
@@ -202,25 +204,22 @@ int GetFileLength(VGM_HEADER* FileHead)
 	// Note: SmplCnt is ALWAYS 44.1 KHz, VGM's native sample rate
 	SmplCnt = FileHead->lngTotalSamples + FileHead->lngLoopSamples * (VGMMaxLoopM - 0x01);
 	
-	return SmplCnt;
-	/*
-	if (FileHead == &VGMHead)
-		MSecCnt = CalcSampleMSec(SmplCnt, 0x02);
-	else
-		MSecCnt = CalcSampleMSecExt(SmplCnt, 0x02, FileHead);
-	
+	INT32 fadeMSec;	
 	if (FileHead->lngLoopSamples)
-		MSecCnt += FadeTime + PauseTime;
+		fadeMSec = FadeTime + PauseTime;
 	else
-		MSecCnt += PauseTime;
-	
-	return (MSecCnt/1000)*SampleRate;
-	*/
+		fadeMSec = PauseTime;
+
+	return SmplCnt + (fadeMSec/1000*VGMSampleRate);
 }
 
 extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) __attribute__((noinline));
 extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) {
-	return SampleVGM2Playback(GetFileLength(&VGMHead));
+	if (max_pos<0) {
+		INT32 l= GetFileLength(&VGMHead);
+		max_pos= SampleVGM2Playback(l);
+	}
+	return max_pos;
 }
 
 extern int EMSCRIPTEN_KEEPALIVE emu_seek_position(INT32 pos) __attribute__((noinline));

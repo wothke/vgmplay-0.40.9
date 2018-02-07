@@ -30,7 +30,6 @@
 
 #include <math.h>
 
-
 #include "mamedef.h"
 //#include "sndintrf.h"
 //#include "streams.h"

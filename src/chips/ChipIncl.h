@@ -44,4 +44,12 @@
 #include "pokey.h"
 #include "qsound.h"
 #include "scsp.h"
+#include "ws_audio.h"
+#include "vsu.h"
+#include "saa1099.h"
+#include "es5503.h"
+#include "es5506.h"
+#include "x1_010.h"
+#include "c352.h"
+#include "iremga20.h"
 #endif

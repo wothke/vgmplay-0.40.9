@@ -40,8 +40,14 @@
 #include "VGMPlay.h"
 #include "VGMPlay_Intf.h"
 
+#ifndef EMSCRIPTEN
 #ifdef XMAS_EXTRA
 #include "XMasFiles/XMasBonus.h"
+#endif
+#define WS_DEMO
+#ifdef WS_DEMO
+#include "XMasFiles/SWJ-SQRC01_1C.h"
+#endif
 #endif
 
 #ifndef WIN32
@@ -88,7 +94,7 @@ static INT8 stricmp_u(const char *string1, const char *string2);
 static INT8 strnicmp_u(const char *string1, const char *string2, size_t count);
 void ReadOptions(const char* AppName);	// EMSCRIPTEN we want to use this
 static bool GetBoolFromStr(const char* TextStr);
-#if defined(XMAS_EXTRA)
+#if defined(XMAS_EXTRA) || defined(WS_DEMO)
 static bool XMas_Extra(char* FileName, bool Mode);
 #endif
 #ifndef WIN32
@@ -110,9 +116,9 @@ const wchar_t* GetTagStrEJ(const wchar_t* EngTag, const wchar_t* JapTag);// EMSC
 static void ShowVGMTag(void);
 
 static void PlayVGM_UI(void);
-static INT8 sign(double Value);
-static long int Round(double Value);
-static double RoundSpecial(double Value, double RoundTo);
+INLINE INT8 sign(double Value);
+INLINE long int Round(double Value);
+INLINE double RoundSpecial(double Value, double RoundTo);
 static void PrintMinSec(UINT32 SamplePos, UINT32 SmplRate);
 
 
@@ -236,7 +242,7 @@ int main(int argc, char* argv[])
 	int argbase;
 	int ErrRet;
 	char* AppName;
-#if defined(XMAS_EXTRA)
+#if defined(XMAS_EXTRA) || defined(WS_DEMO)
 	bool XMasEnable;
 #endif
 	char* AppPathPtr;
@@ -304,7 +310,7 @@ int main(int argc, char* argv[])
 	
 	// Path 2: exe's directory
 	AppName = GetAppFileName();	// "C:\VGMPlay\VGMPlay.exe"
-	// Note: GetAppFileName always retuens native directory separators.
+	// Note: GetAppFileName always returns native directory separators.
 	StrPtr = strrchr(AppName, DIR_CHR);
 	if (StrPtr != NULL)
 	{
@@ -378,7 +384,9 @@ int main(int argc, char* argv[])
 		ErrRet = SetConsoleCP(ChrPos);			// set input codepage
 		//ErrRet = SetConsoleOutputCP(ChrPos);	// set output codepage (would be a bad idea)
 		
-		fgets(VgmFileName, MAX_PATH, stdin);
+		StrPtr = fgets(VgmFileName, MAX_PATH, stdin);
+		if (StrPtr == NULL)
+			VgmFileName[0] = '\0';
 		
 		// Playing with the console font resets the Console Codepage to OEM, so I have to
 		// convert the file name in this case.
@@ -407,7 +415,9 @@ int main(int argc, char* argv[])
 		//	Debug build:	Dynamite D³x [tag display wrong]
 		//	Release build:	Dynamite D³x [tag display wrong]
 #else
-		fgets(VgmFileName, MAX_PATH, stdin);
+		StrPtr = fgets(VgmFileName, MAX_PATH, stdin);
+		if (StrPtr == NULL)
+			VgmFileName[0] = '\0';
 #endif
 		
 		RemoveNewLines(VgmFileName);
@@ -423,7 +433,7 @@ int main(int argc, char* argv[])
 		goto ExitProgram;
 	StandardizeDirSeparators(VgmFileName);
 	
-#if defined(XMAS_EXTRA)
+#if defined(XMAS_EXTRA) || defined(WS_DEMO)
 	XMasEnable = XMas_Extra(VgmFileName, 0x00);
 #endif
 	
@@ -494,7 +504,7 @@ int main(int argc, char* argv[])
 		CloseVGMFile();
 	}
 	else
-	{	// PLAYLIST MODE...
+	{
 		strcpy(PLFileName, VgmFileName);
 		if (! OpenPlayListFile(PLFileName))
 		{
@@ -577,7 +587,7 @@ int main(int argc, char* argv[])
 #endif
 	
 ExitProgram:
-#if defined(XMAS_EXTRA)
+#if defined(XMAS_EXTRA) || defined(WS_DEMO)
 	if (XMasEnable)
 		XMas_Extra(VgmFileName, 0x01);
 #endif
@@ -724,12 +734,17 @@ static void WinNT_Check(void)
 static char* GetAppFileName(void)
 {
 	char* AppPath;
+	int RetVal;
 	
 	AppPath = (char*)malloc(MAX_PATH * sizeof(char));
 #ifdef WIN32
-	GetModuleFileName(NULL, AppPath, MAX_PATH);
+	RetVal = GetModuleFileName(NULL, AppPath, MAX_PATH);
+	if (! RetVal)
+		AppPath[0] = '\0';
 #else
-	readlink("/proc/self/exe", AppPath, MAX_PATH);
+	RetVal = readlink("/proc/self/exe", AppPath, MAX_PATH);
+	if (RetVal == -1)
+		AppPath[0] = '\0';
 #endif
 	
 	return AppPath;
@@ -905,14 +920,16 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 		0x00, 0x09, 0x09, 0x09, 0x12, 0x00, 0x0C, 0x08,
 		0x08, 0x00, 0x03, 0x04, 0x05, 0x1C, 0x00, 0x00,
 		0x04, 0x05, 0x08, 0x08, 0x18, 0x04, 0x04, 0x10,
-		0x20
+		0x20, 0x04, 0x06, 0x06, 0x20, 0x20, 0x10, 0x20,
+		0x04
 	};
 	const UINT8 CHN_MASK_CNT[CHIP_COUNT] =
-	{	0x04, 0x0E, 0x06, 0x08, 0x10, 0x08, 0x03, 0x06,
+	{	0x04, 0x0E, 0x07, 0x08, 0x10, 0x08, 0x03, 0x06,
 		0x06, 0x0E, 0x0E, 0x0E, 0x17, 0x18, 0x0C, 0x08,
 		0x08, 0x00, 0x03, 0x04, 0x05, 0x1C, 0x00, 0x00,
 		0x04, 0x05, 0x08, 0x08, 0x18, 0x04, 0x04, 0x10,
-		0x20
+		0x20, 0x04, 0x06, 0x06, 0x20, 0x20, 0x10, 0x20,
+		0x04
 	};
 	char* FileName;
 	FILE* hFile;
@@ -1210,6 +1227,14 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 			case 0x9E:	// Pokey
 			case 0x9F:	// QSound
 			case 0xA0:	// SCSP
+			case 0xA1:	// WonderSwan
+			case 0xA2:	// VSU
+			case 0xA3:	// SAA1099
+			case 0xA4:	// ES5503
+			case 0xA5:	// ES5506
+			case 0xA6:	// X1_010
+			case 0xA7:	// C352
+			case 0xA8:	// GA20
 				CurChip = IniSection & 0x7F;
 				TempCOpt = (CHIP_OPTS*)&ChipOpts[0x00] + CurChip;
 				
@@ -1301,7 +1326,7 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 						else if (! stricmp_u(LStr, "MuteMask_PCM"))
 						{
 							TempCOpt->ChnMute2 = strtoul(RStr, NULL, 0);
-							TempCOpt->ChnMute2 &= (1 << CHN_MASK_CNT[CurChip]) - 1;
+							TempCOpt->ChnMute2 &= (1 << (CHN_MASK_CNT[CurChip] + 1)) - 1;
 						}
 						else if (! strnicmp_u(LStr, "MuteFMCh", 0x08))
 						{
@@ -1386,15 +1411,16 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 						}
 						else if (! strnicmp_u(LStr, "MuteFM", 0x06))
 						{
-							if (! stricmp_u(LStr + 4, "BD"))
+							CurChn = 0xFF;
+							if (! stricmp_u(LStr + 6, "BD"))
 								CurChn = 0x00;
-							else if (! stricmp_u(LStr + 4, "SD"))
+							else if (! stricmp_u(LStr + 6, "SD"))
 								CurChn = 0x01;
-							else if (! stricmp_u(LStr + 4, "TOM"))
+							else if (! stricmp_u(LStr + 6, "TOM"))
 								CurChn = 0x02;
-							else if (! stricmp_u(LStr + 4, "TC"))
+							else if (! stricmp_u(LStr + 6, "TC"))
 								CurChn = 0x03;
-							else if (! stricmp_u(LStr + 4, "HH"))
+							else if (! stricmp_u(LStr + 6, "HH"))
 								CurChn = 0x04;
 							if (CurChn != 0xFF)
 							{
@@ -1483,6 +1509,12 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 							TempCOpt->SpecialFlags &= ~(0x01 << 0);
 							TempCOpt->SpecialFlags |= TempFlag << 0;
 						}
+						else if (! stricmp_u(LStr, "RemoveDCOfs"))
+						{
+							TempFlag = GetBoolFromStr(RStr);
+							TempCOpt->SpecialFlags &= ~(0x01 << 1);
+							TempCOpt->SpecialFlags |= TempFlag << 1;
+						}
 						break;
 					case 0x20:	// SCSP
 						if (! stricmp_u(LStr, "BypassDSP"))
@@ -1534,7 +1566,7 @@ static bool GetBoolFromStr(const char* TextStr)
 		return strtol(TextStr, NULL, 0) ? true : false;
 }
 
-#if defined(XMAS_EXTRA)
+#if defined(XMAS_EXTRA) || defined(WS_DEMO)
 static bool XMas_Extra(char* FileName, bool Mode)
 {
 	char* FileTitle;
@@ -1576,6 +1608,13 @@ static bool XMas_Extra(char* FileName, bool Mode)
 			FileTitle = "clyde1_1.dro";
 			XMasSize = sizeof(clyde1_1_dro);
 			XMasData = clyde1_1_dro;
+		}
+#elif defined(WS_DEMO)
+		if (! stricmp_u(FileName, "wswan"))
+		{
+			FileTitle = "SWJ-SQRC01_1C.vgz";
+			XMasSize = sizeof(FF1ws_1C);
+			XMasData = FF1ws_1C;
 		}
 #endif
 		
@@ -1690,6 +1729,7 @@ static bool OpenPlayListFile(const char* FileName)
 	const char M3UV2_META[] = "#EXTINF:";
 	const UINT8 UTF8_SIG[] = {0xEF, 0xBB, 0xBF};
 	UINT32 METASTR_LEN;
+	size_t RetVal;
 	
 	FILE* hFile;
 	UINT32 LineNo;
@@ -1703,8 +1743,11 @@ static bool OpenPlayListFile(const char* FileName)
 	if (hFile == NULL)
 		return false;
 	
-	fread(TempStr, 0x01, 0x03, hFile);
-	IsUTF8 = ! memcmp(TempStr, UTF8_SIG, 0x03);
+	RetVal = fread(TempStr, 0x01, 0x03, hFile);
+	if (RetVal >= 0x03)
+		IsUTF8 = ! memcmp(TempStr, UTF8_SIG, 0x03);
+	else
+		IsUTF8 = false;
 	
 	rewind(hFile);
 	
@@ -1869,15 +1912,16 @@ static void wprintc(const wchar_t* format, ...)
 	// This is the only way to print Unicode stuff to the Windows console.
 	// No, wprintf doesn't work.
 	RetVal = WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), printbuf, StrLen, &CPMode, NULL);
-	if (! RetVal)	// call failed (maybe not as ERROR_CALL_NOT_IMPLEMENTED on Win95?)
+	if (! RetVal)	// call failed (e.g. with ERROR_CALL_NOT_IMPLEMENTED on Win95)
 	{
 		// fallback to printf with OEM codepage
 		oembuf = (char*)malloc(BufSize);
-		if (GetConsoleOutputCP() == GetOEMCP())
+		/*if (GetConsoleOutputCP() == GetOEMCP())
 			CPMode = CP_OEMCP;
 		else
-			CPMode = CP_ACP;
-		WideCharToMultiByte(CP_OEMCP, 0x00, printbuf, StrLen, oembuf, BufSize, NULL, NULL);
+			CPMode = CP_ACP;*/
+		CPMode = GetConsoleOutputCP();
+		WideCharToMultiByte(CPMode, 0x00, printbuf, StrLen + 1, oembuf, BufSize, NULL, NULL);
 		
 		printf("%s", oembuf);
 		free(oembuf);
@@ -2023,8 +2067,25 @@ static void ShowVGMTag(void)
 	printf("Loop: ");
 	if (VGMHead.lngLoopOffset)
 	{
+		UINT32 PbRateMul;
+		UINT32 PbRateDiv;
+		UINT32 PbSamples;
+		
+		// calculate samples for correct display with changed playback rate
+		if (! VGMPbRate || ! VGMHead.lngRate)
+		{
+			PbRateMul = 1;
+			PbRateDiv = 1;
+		}
+		else
+		{
+			PbRateMul = VGMHead.lngRate;
+			PbRateDiv = VGMPbRate;
+		}
+		PbSamples = (UINT32)((UINT64)VGMHead.lngLoopSamples * PbRateMul / PbRateDiv);
+		
 		printf("Yes (");
-		PrintMinSec(VGMHead.lngLoopSamples, VGMSampleRate);
+		PrintMinSec(PbSamples, VGMSampleRate);
 		printf(")\n");
 	}
 	else
@@ -2051,7 +2112,6 @@ static void ShowVGMTag(void)
 #endif
 
 #define LOG_SAMPLES	(SampleRate / 5)
-UINT8 multipcm_get_channels(UINT8 ChipID, UINT32* ChannelMask);
 #ifndef EMSCRIPTEN
 static void PlayVGM_UI(void)
 {
@@ -2587,7 +2647,7 @@ static void PlayVGM_UI(void)
 }
 #endif
 
-static INT8 sign(double Value)
+INLINE INT8 sign(double Value)
 {
 	if (Value > 0.0)
 		return 1;
@@ -2597,13 +2657,13 @@ static INT8 sign(double Value)
 		return 0;
 }
 
-static long int Round(double Value)
+INLINE long int Round(double Value)
 {
 	// Alternative:	(fabs(Value) + 0.5) * sign(Value);
 	return (long int)(Value + 0.5 * sign(Value));
 }
 
-static double RoundSpecial(double Value, double RoundTo)
+INLINE double RoundSpecial(double Value, double RoundTo)
 {
 	return (long int)(Value / RoundTo + 0.5 * sign(Value)) * RoundTo;
 }
