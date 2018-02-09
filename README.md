@@ -12,23 +12,6 @@ A live demo of this program can be found here: http://www.wothke.ch/webvgm/
 The project is based on version vgmPlay0.40.6. It includes most of the original code including the 3rd party dependencies. All the "Web" specific additions (i.e. the whole point of this project) are contained in the "emscripten" subfolder. The main interface between the JavaScript/WebAudio world and the original C code is the adapter.c file. Some patches were necessary within the original codebase (these can be located by looking for EMSCRIPTEN if-defs).
 
 
-   
-## LICENSE
-
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version. This library is distributed in the hope
-that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
-warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Lesser General Public License for more details.
- 
-You should have received a copy of the GNU Lesser General Public
-
-License along with this library; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
-
-	
 ## Credits
 Based on original C code of vgmPlay (see http://vgmrips.net/forum/viewtopic.php?t=112).
 
@@ -55,3 +38,23 @@ Study the example in "htdocs" for how the player is used (Notice: In order to pl
 need a sample ROM, called yrw801.rom - which you should place in the "htdocs" folder.). This project comes without 
 any music files, so you'll have to get your own and place them in the htdocs/music folder (you'll also have to 
 configure them in the 'songs' list in index.html).
+
+## Dependencies
+The current version requires version 1.02 (older versions will not
+support WebAssembly) of my https://github.com/wothke/webaudio-player.
+
+
+## License
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version. This library is distributed in the hope
+that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+ 
+You should have received a copy of the GNU Lesser General Public
+
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
