@@ -999,7 +999,7 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 #else
 	// directly interpret input as name of the config file
 	FileName = (char*)malloc(strlen(AppName) + 0x01);	// + 00
-	strcpy(FileName, AppName);	
+	strcpy(FileName, AppName);
 #endif	
 	
 	hFile = fopen(FileName, "rt");
@@ -1934,7 +1934,42 @@ static void wprintc(const wchar_t* format, ...)
 	
 	return;
 }
+#ifdef EMSCRIPTEN
 
+char ChipNamesBuf[256];
+
+static void AppendChipStr(UINT8 ChipID, UINT8 SubType, UINT32 Clock)
+{
+	if (! Clock)
+		return;
+	
+	if (ChipID == 0x00 && (Clock & 0x80000000))
+		Clock &= ~0x40000000;
+	if (Clock & 0x80000000)
+	{
+		Clock &= ~0x80000000;
+		ChipID |= 0x80;
+	}
+	
+	int len= strlen(ChipNamesBuf);	// must be reset before 1st use or buffer may overflow!
+
+	if (len) {
+		sprintf((ChipNamesBuf+len), ", ");
+		len+=2;
+	}
+	
+	if (Clock & 0x40000000) {
+		sprintf((ChipNamesBuf+len), "2x");
+		len+=2;
+	}
+	
+	const char*name= GetAccurateChipName(ChipID, SubType);
+	
+	sprintf((ChipNamesBuf+len), "%s", name);
+	
+	return;
+}
+#endif
 static void PrintChipStr(UINT8 ChipID, UINT8 SubType, UINT32 Clock)
 {
 	if (! Clock)
@@ -2108,6 +2143,25 @@ static void ShowVGMTag(void)
 	printf("\n");
 	
 	return;
+}
+#endif
+
+#ifdef EMSCRIPTEN
+const char * GetChipsInfo(void) {
+	ChipNamesBuf[0]= 0;	// reset empty string
+
+	UINT8 CurChip;
+	UINT32 ChpClk;
+	UINT8 ChpType;
+	
+	for (CurChip = 0x00; CurChip < CHIP_COUNT; CurChip ++)
+	{
+		ChpClk = GetChipClock(&VGMHead, CurChip, &ChpType);
+		if (ChpClk && GetChipClock(&VGMHead, 0x80 | CurChip, NULL))
+			ChpClk |= 0x40000000;
+		AppendChipStr(CurChip, ChpType, ChpClk);
+	}
+	return ChipNamesBuf;
 }
 #endif
 

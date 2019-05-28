@@ -39,7 +39,10 @@ typedef INT32 stream_sample_t;
 #define BYTE_XOR_BE(x)	((x) ^ 0x01)
 #endif
 
-#if defined(_MSC_VER)
+#if defined(EMSCRIPTEN)
+// for some reason inline functions cause nothing but problems in EMSCRIPTEN
+#define INLINE	static
+#elif defined(_MSC_VER)
 //#define INLINE	static __forceinline
 #define INLINE	static __inline
 #elif defined(__GNUC__)

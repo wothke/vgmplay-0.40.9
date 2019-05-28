@@ -1048,8 +1048,10 @@ void PauseVGM(bool Pause)
 		}
 		if (Pause && ThreadPauseEnable)
 		{
+#ifndef EMSCRIPTEN
 			while(! ThreadPauseConfrm)
 				Sleep(1);	// Wait until the Thread is finished
+#endif
 		}
 		PauseThread = Pause;
 	}
@@ -2410,8 +2412,11 @@ static void RestartPlaying(void)
 		ThreadNoWait = false;
 		ThreadPauseConfrm = false;
 		PauseThread = true;
+#ifndef ENSCRIPTEN
+		// potentially deadly endless loop in single threaded EMSCRIPTEN env
 		while(! ThreadPauseConfrm)
 			Sleep(1);	// Wait until the Thread is finished
+#endif
 	}
 	Interpreting = true;	// Avoid any Thread-Call
 	
@@ -3909,7 +3914,7 @@ static UINT8 StartThread(void)
 }
 
 static UINT8 StopThread(void)
-{
+{	
 #ifdef WIN32
 	UINT16 Cnt;
 #endif
@@ -4048,8 +4053,11 @@ static void InterpretFile(UINT32 SampleCount)
 	
 	//if (Interpreting && SampleCount == 1)
 	//	return;
+#ifndef EMSCRIPTEN
+	// deadly endless loop in single threaded EMSCRIPTEN env
 	while(Interpreting)
 		Sleep(1);
+#endif
 	
 	if (DacCtrlUsed && SampleCount > 1)	// handle skipping
 	{
@@ -6213,9 +6221,10 @@ DWORD WINAPI PlayingThread(void* Arg)
 	
 	while (! CloseThread)
 	{
+#ifndef  EMSCRIPTEN
 		while(PlayingMode != 0x01 && ! CloseThread)
 			Sleep(1);
-		
+#endif		
 		if (! PauseThread)
 		{
 			TimeDiff = TimeNow.QuadPart - TimeLast.QuadPart;

@@ -1,5 +1,5 @@
 /*
-* This file adapts "ZXTune" to the interface expected by my generic JavaScript player..
+* This file adapts "vgmplay" to the interface expected by my generic JavaScript player..
 *
 * Copyright (C) 2015 Juergen Wothke
 *
@@ -22,7 +22,12 @@
 #include <stdio.h>
 #include <stdlib.h>     /* malloc, free, rand */
 
-
+//#include <math.h>  // ldexp
+/*
+double ldexp (double x, int exp) { // for some reason used emscripten misses this though nobody is using it.. only when compiling without optimizations..
+	return 0;
+}
+*/
 typedef unsigned char UINT8; 
 typedef signed char INT8; 
 typedef unsigned short UINT16; 
@@ -77,15 +82,17 @@ extern UINT32 PauseTime;
 // reuse utils from original UI
 extern void ReadOptions(const char* filename);
 extern const wchar_t* GetTagStrEJ(const wchar_t* EngTag, const wchar_t* JapTag);
+extern const char * GetChipsInfo(void);
 
+/*
 #ifdef EMSCRIPTEN
 #define EMSCRIPTEN_KEEPALIVE __attribute__((used))
 #else
 #define EMSCRIPTEN_KEEPALIVE
 #endif
-
+*/
 #define BUF_SIZE	1024
-#define TEXT_MAX	255
+#define TEXT_MAX	255*4
 #define NUM_MAX	15
 
 // see Sound::Sample::CHANNELS
@@ -99,21 +106,23 @@ INT32 max_pos= -1;
 char title_str[TEXT_MAX];
 char author_str[TEXT_MAX];
 char desc_str[TEXT_MAX];
-char type_str[TEXT_MAX];
+char notes_str[TEXT_MAX];
 char tracks_str[TEXT_MAX];
+char chips_str[TEXT_MAX];
 char program_str[NUM_MAX];
 
 typedef struct Info{
-    const char* info_texts[6];
+    const char* info_texts[7];
 } Info;
 
 static struct Info info = {
 	.info_texts[0]= title_str,
 	.info_texts[1]= author_str,
 	.info_texts[2]= desc_str,
-	.info_texts[3]= type_str,
+	.info_texts[3]= notes_str,
 	.info_texts[4]= program_str,
-	.info_texts[5]= tracks_str
+	.info_texts[5]= chips_str,
+	.info_texts[6]= tracks_str
 };
 
 extern void emu_teardown (void)  __attribute__((noinline));
@@ -133,7 +142,7 @@ extern EMSCRIPTEN_KEEPALIVE int emu_init(int sample_rate, char *basedir, char *s
 	
 	VGMPlay_Init();
 	snprintf(ini_file, TEXT_MAX, "VGMPlay.ini");
-	ReadOptions(ini_file);
+	ReadOptions(ini_file);	// XXX FIXME not async!
 	
 	SampleRate = sample_rate;	// override whatever may be hardcoded in the config.. by using what is needed by WebAudio later resampling is avoided
 	
@@ -161,26 +170,38 @@ extern int EMSCRIPTEN_KEEPALIVE emu_set_subsong(int subsong, int boostVolume) {
 	return 0;
 }
 
+int len_wstr(const wchar_t *crap) {
+	// note: wchar_t is 4 bytes..
+	int len=0;
+	wchar_t c;
+	for (;(c = *crap); len++, crap++);
+	
+	return len;
+}
 
-char scratchpad[TEXT_MAX];
-char* convert_to_string(const wchar_t *crap) {
-	char *buf= scratchpad;
-	while ((*buf++ = (char)*crap++)); 
-	return scratchpad;
+#include <string.h>
+void copy_string(const char *dest, const wchar_t *src) {
+	memcpy(dest, src, (len_wstr(src)+1)*sizeof(wchar_t));
 }
 
 extern const char** emu_get_track_info() __attribute__((noinline));
-extern const char** EMSCRIPTEN_KEEPALIVE emu_get_track_info() {
+extern const char** EMSCRIPTEN_KEEPALIVE emu_get_track_info() {	
 	const wchar_t* TitleTag= GetTagStrEJ(VGMTag.strTrackNameE, VGMTag.strTrackNameJ);
 	const wchar_t* GameTag = GetTagStrEJ(VGMTag.strGameNameE, VGMTag.strGameNameJ);
 	const wchar_t* AuthorTag = GetTagStrEJ(VGMTag.strAuthorNameE, VGMTag.strAuthorNameJ);
 	const wchar_t* SystemTag = GetTagStrEJ(VGMTag.strSystemNameE, VGMTag.strSystemNameJ);
+
+	copy_string(title_str, TitleTag);
+	copy_string(author_str, AuthorTag);
+	copy_string(desc_str, GameTag);
+	copy_string(notes_str, VGMTag.strNotes);
+	memcpy(program_str, SystemTag, len_wstr(SystemTag)*sizeof(wchar_t));
 	
-	snprintf(title_str, TEXT_MAX, "%s", convert_to_string(TitleTag));
-	snprintf(author_str, TEXT_MAX, "%s", convert_to_string(AuthorTag));
-	snprintf(desc_str, TEXT_MAX, "%s", convert_to_string(GameTag));
-	snprintf(program_str, TEXT_MAX, "%s", convert_to_string(SystemTag));
 	snprintf(tracks_str, NUM_MAX, "%d",  1);
+	
+	const char* chips = 	GetChipsInfo();
+	snprintf(chips_str, TEXT_MAX, "%s",  chips);
+		
 	return info.info_texts;
 }
 

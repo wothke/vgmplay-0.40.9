@@ -96,8 +96,13 @@ function doOnTrackReadyToPlay(){
 	ScriptNodePlayer.getInstance().play();
 	songDisplay.redrawSongInfo();
 }
+// depending on the browser/timing the player may be ready before or after (see WASM) init(), i.e.
+// the startup sequence must handle both cases (music can only be started when
+// both the player is ready and init() has been completed..)
+var playerReady= false;		
 function doOnPlayerReady() {
-	if (playerControls) playerControls.playNextSong();
+	playerReady= true;
+	if (playerControls) playerControls.playNextSong(); // playerControls are used to check for init()
 }
 function init() {
 	// --------------------------- VGM music player -----------------------
@@ -127,7 +132,7 @@ function init() {
 	songDisplay= new SongDisplay(new VGMDisplayAccessor((function(){return playerControls.getSongInfo();})), 
 								[yellow, red, purple, blue, blue], 1, 0.1, (function(){playerControls.animate()}));
 
-	playerControls.playNextSong();
+	if (playerReady) playerControls.playNextSong();	// player was ready before it could trigger the playback
 }
 </script>
 <script type="text/javascript" src="stdlib/analytics.js"></script>
