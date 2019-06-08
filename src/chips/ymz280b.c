@@ -36,16 +36,10 @@
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <memory.h>
-#include <malloc.h>
-#include "ymz280b.h"
-
-#ifdef EMSCRIPTEN
 #include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
-
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
+#include "ymz280b.h"
 
 static void update_irq_state_timer_common(void *param, int voicenum);
 
@@ -362,6 +356,7 @@ static int generate_adpcm(struct YMZ280BVoice *voice, UINT8 *base, UINT32 size, 
 			/* compute the new amplitude and update the current step */
 			//val = base[position / 2] >> ((~position & 1) << 2);
 			val = ymz280b_read_memory(base, size, position / 2) >> ((~position & 1) << 2);
+			signal = (signal * 254) / 256;
 			signal += (step * diff_lookup[val & 15]) / 8;
 
 			/* clamp to the maximum */
@@ -402,6 +397,7 @@ static int generate_adpcm(struct YMZ280BVoice *voice, UINT8 *base, UINT32 size, 
 			/* compute the new amplitude and update the current step */
 			//val = base[position / 2] >> ((~position & 1) << 2);
 			val = ymz280b_read_memory(base, size, position / 2) >> ((~position & 1) << 2);
+			signal = (signal * 254) / 256;
 			signal += (step * diff_lookup[val & 15]) / 8;
 
 			/* clamp to the maximum */
@@ -573,9 +569,9 @@ static int generate_pcm16(struct YMZ280BVoice *voice, UINT8 *base, UINT32 size, 
 		while (samples)
 		{
 			/* fetch the current value */
-			//val = (INT16)((base[position / 2 + 1] << 8) + base[position / 2 + 0]);
+			// the manual says "16-bit 2's complement MSB-first format"
+			//val = (INT16)((base[position / 2 + 0] << 8) + base[position / 2 + 1]);
 			val = (INT16)((ymz280b_read_memory(base, size, position / 2 + 0) << 8) + ymz280b_read_memory(base, size, position / 2 + 1));
-			// Note: Last MAME updates say it's: ((position / 2 + 1) << 8) + (position / 2 + 0);
 
 			/* output to the buffer, scaling by the volume */
 			*buffer++ = val;
@@ -600,7 +596,7 @@ static int generate_pcm16(struct YMZ280BVoice *voice, UINT8 *base, UINT32 size, 
 		while (samples)
 		{
 			/* fetch the current value */
-			//val = (INT16)((base[position / 2 + 1] << 8) + base[position / 2 + 0]);
+			//val = (INT16)((base[position / 2 + 0] << 8) + base[position / 2 + 1]);
 			val = (INT16)((ymz280b_read_memory(base, size, position / 2 + 0) << 8) + ymz280b_read_memory(base, size, position / 2 + 1));
 
 			/* output to the buffer, scaling by the volume */

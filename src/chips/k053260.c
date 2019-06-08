@@ -9,15 +9,10 @@
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <malloc.h>
-#include <memory.h>
-#include "k053260.h"
-
-#ifdef EMSCRIPTEN
 #include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
+#include "k053260.h"
 
 /* 2004-02-28: Fixed PPCM decoding. Games sound much better now.*/
 
@@ -184,7 +179,7 @@ void k053260_update(UINT8 ChipID, stream_sample_t **outputs, int samples)
 
 					if ( ppcm[i] ) { /* Packed PCM */
 						/* we only update the signal if we're starting or a real sound sample has gone by */
-						/* this is all due to the dynamic sample rate convertion */
+						/* this is all due to the dynamic sample rate conversion */
 						if ( pos[i] == 0 || ( ( pos[i] ^ ( pos[i] - delta[i] ) ) & 0x8000 ) == 0x8000 )
 
 						{

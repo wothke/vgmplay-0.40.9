@@ -3,13 +3,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <memory.h>
-#include "stdbool.h"
-#include <math.h>
-
 #ifdef EMSCRIPTEN
 #include <wchar.h>
 #endif
+#include "stdbool.h"
+#include <math.h>
 
 #ifndef EMSCRIPTEN
 #ifdef WIN32
@@ -439,7 +437,7 @@ INLINE UINT16 ReadLE16(const UINT8* Data)
 #if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
 	return *(UINT16*)Data;
 #else
-	return (Data[0x01] << 8) | (Data[0x00] << 0);
+	return	(Data[0x01] << 8) | (Data[0x00] << 0);
 #endif
 }
 
@@ -447,7 +445,7 @@ INLINE UINT32 ReadLE32(const UINT8* Data)
 {
 	// read 32-Bit Word (Little Endian/Intel Byte Order)
 #if !defined(VGM_BIG_ENDIAN) && !defined(EMSCRIPTEN)
-	return	*(UINT32*)Data;
+	return *(UINT32*)Data;
 #else
 	return	(Data[0x03] << 24) | (Data[0x02] << 16) |
 			(Data[0x01] <<  8) | (Data[0x00] <<  0);
@@ -566,7 +564,7 @@ static void SendMIDIVolume(UINT8 ChipID, UINT8 Channel, UINT8 Command,
 	if (NoteVol < 0x00)
 		NoteVol = 0x00;
 	
-	TempByt = NoteVol | TempIns->ScaleLevel[TempLng] & 0xC0;
+	TempByt = NoteVol | (TempIns->ScaleLevel[TempLng] & 0xC0);
 	chip_reg_write(0x09, ChipID, 0x00, 0x40 | (OpBase + OpMask), TempByt);
 	
 	return;

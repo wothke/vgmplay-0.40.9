@@ -44,16 +44,11 @@ Unmapped registers:
 
 
 //#include "emu.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 #include "mamedef.h"
 #include "c140.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 #define MAX_VOICE 24
 

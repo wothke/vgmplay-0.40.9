@@ -55,16 +55,12 @@ differences between OPL2 and OPL3 shown in datasheets:
 
 #include <math.h>
 #include "mamedef.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 //#include "sndintrf.h"
 #include "ymf262.h"
 
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 /* output final shift */
 #if (OPL3_SAMPLE_BITS==16)

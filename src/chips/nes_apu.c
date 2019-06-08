@@ -45,8 +45,8 @@
  *****************************************************************************/
 
 #include "mamedef.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
 #include <stddef.h>	// for NULL
 //#include "emu.h"
 //#include "streams.h"
@@ -54,10 +54,6 @@
 //#include "cpu/m6502/m6502.h"
 
 #include "nes_defs.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#endif
 
 /* GLOBAL CONSTANTS */
 #define  SYNCS_MAX1     0x20
@@ -725,6 +721,8 @@ INLINE uint8 apu_read(nesapu_state *info,int address)
 /* WRITE VALUE TO TEMP REGISTRY AND QUEUE EVENT */
 INLINE void apu_write(nesapu_state *info,int address, uint8 value)
 {
+	if (address >= 0x20)
+		return;
 	info->APU.regs[address]=value;
 	//stream_update(info->stream);
 	apu_regwrite(info,address,value);

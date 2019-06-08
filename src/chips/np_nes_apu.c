@@ -7,16 +7,12 @@
 // (Note: Encoding is UTF-8)
 
 //#include <assert.h>
-#include <malloc.h>
-#include <memory.h>	// for memset()
+#include <stdlib.h>
+#include <string.h>	// for memset
 #include <stddef.h>	// for NULL
 #include "mamedef.h"
 #include "../stdbool.h"
 #include "np_nes_apu.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#endif
 
 
 // Master Clock: 21477272 (NTSC)

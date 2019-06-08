@@ -102,16 +102,11 @@
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <memory.h>
-#include <malloc.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 #include "mamedef.h"
 #include "upd7759.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 
 #define DEBUG_STATES	(0)
@@ -676,11 +671,11 @@ void device_reset_upd7759(UINT8 ChipID)
 
 
 //static STATE_POSTLOAD( upd7759_postload )
-static void upd7759_postload(void* param)
+/*static void upd7759_postload(void* param)
 {
 	upd7759_state *chip = (upd7759_state *)param;
 	chip->rom = chip->rombase + chip->romoffset;
-}
+}*/
 
 
 /*static void register_for_save(upd7759_state *chip, running_device *device)

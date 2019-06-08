@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 #include "stdbool.h"
-#include <malloc.h>
+#include <stdlib.h>
 
 #ifdef WIN32
 #include <windows.h>
@@ -16,6 +16,8 @@
 #include <fcntl.h>
 #ifdef __NetBSD__
 #include <sys/audioio.h>
+#elif defined(__APPLE__) || defined(__OpenBSD__)
+// nothing
 #else
 #include <linux/soundcard.h>
 #endif
@@ -199,13 +201,13 @@ UINT8 SaveFile(UINT32 FileLen, const void* TempData)
 			UINT32 CurSmpl;
 			const UINT16* SmplData;
 			
-			SmplData = (INT16*)TempData;
+			SmplData = (UINT16*)TempData;
 			DataLen = SAMPLESIZE * FileLen / 0x02;
 			for (CurSmpl = 0x00; CurSmpl < DataLen; CurSmpl ++)
 				SndLogLen += fputLE16(SmplData[CurSmpl], hFile);
 		}
 #endif
-		//sprintf(ResultStr, "Position:\t%ld\nBytes written:\t%ld\nFile Length:\t%lu\nPointer:\t%p",
+		//sprintf(ResultStr, "Position:\t%d\nBytes written:\t%d\nFile Length:\t%u\nPointer:\t%p",
 		//		TempVal[0], TempVal[1], FileLen, TempData);
 		//AfxMessageBox(ResultStr);
 	}

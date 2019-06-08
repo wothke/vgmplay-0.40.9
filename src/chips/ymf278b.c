@@ -63,18 +63,13 @@
 //#include "sndintrf.h"
 //#include "streams.h"
 //#include "cpuintrf.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 #include <stdio.h>
 #include <string.h>
 #include "ymf262.h"
 #include "ymf278b.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 typedef struct
 {
@@ -83,7 +78,7 @@ typedef struct
 	UINT32 endaddr;
 	UINT32 step;	/* fixed-point frequency step */
 	UINT32 stepptr;	/* fixed-point pointer into the sample */
-	UINT32 pos;
+	UINT16 pos;
 	INT16 sample1, sample2;
 
 	INT32 env_vol;
@@ -129,6 +124,8 @@ typedef struct
 	INT8 memmode;
 	INT32 memadr;
 
+	UINT8 exp;
+
 	INT32 fm_l, fm_r;
 	INT32 pcm_l, pcm_r;
 
@@ -170,10 +167,10 @@ char* FindFile(const char* FileName);	// from VGMPlay_Intf.h/VGMPlay.c
 #define EG_TIMER_OVERFLOW	(1 << EG_SH)
 
 // envelope output entries
-#define ENV_BITS	10
+#define ENV_BITS	11	// -VB
 #define ENV_LEN		(1 << ENV_BITS)
 #define ENV_STEP	(128.0 / ENV_LEN)
-#define MAX_ATT_INDEX	((1 << (ENV_BITS - 1)) - 1)	// 511
+#define MAX_ATT_INDEX	511
 #define MIN_ATT_INDEX	0
 
 // Envelope Generator phases
@@ -196,7 +193,7 @@ const INT32 pan_right[16] = {
 
 // Mixing levels, units are -3dB, and add some marging to avoid clipping
 const INT32 mix_level[8] = {
-	8, 16, 24, 32, 40, 48, 56, 256
+	8, 16, 24, 32, 40, 48, 56, 256+8
 };
 
 // decay level table (3dB per step)
@@ -340,7 +337,12 @@ INLINE int ymf278b_slot_compute_rate(YMF278BSlot* slot, int val)
 		{
 			oct |= -8;
 		}
-		res = (oct + slot->RC) * 2 + (slot->FN & 0x200 ? 1 : 0) + val * 4;
+		res = (oct + slot->RC);
+		if (res < 0)
+			res = 0;
+		else if (res > 15)
+			res = 15;
+		res = res * 2 + ((slot->FN & 0x200) ? 1 : 0) + val * 4;
 	}
 	else
 	{
@@ -378,7 +380,7 @@ INLINE void ymf278b_slot_set_lfo(YMF278BSlot* slot, int newlfo)
 	slot->lfo_max = lfo_period[slot->lfo];
 }
 
-INLINE ymf278b_advance(YMF278BChip* chip)
+INLINE void ymf278b_advance(YMF278BChip* chip)
 {
 	YMF278BSlot* op;
 	int i;
@@ -422,7 +424,7 @@ INLINE ymf278b_advance(YMF278BChip* chip)
 			if (! (chip->eg_cnt & ((1 << shift) - 1)))
 			{
 				select = eg_rate_select[rate];
-				op->env_vol += (~op->env_vol * eg_inc[select + ((chip->eg_cnt >> shift) & 7)]) >> 3;
+				op->env_vol += (~op->env_vol * eg_inc[select + ((chip->eg_cnt >> shift) & 7)]) >> 4;	// -VB
 				if (op->env_vol <= MIN_ATT_INDEX)
 				{
 					op->env_vol = MIN_ATT_INDEX;
@@ -550,9 +552,9 @@ INLINE ymf278b_advance(YMF278BChip* chip)
 INLINE UINT8 ymf278b_readMem(YMF278BChip* chip, offs_t address)
 {
 	if (address < chip->ROMSize)
-		return chip->rom[address];
+		return chip->rom[address&0x3fffff];
 	else if (address < chip->ROMSize + chip->RAMSize)
-		return chip->ram[address - chip->ROMSize];
+		return chip->ram[address - (chip->ROMSize&0x3fffff)];
 	else
 		return 255; // TODO check
 }
@@ -560,9 +562,9 @@ INLINE UINT8 ymf278b_readMem(YMF278BChip* chip, offs_t address)
 INLINE UINT8* ymf278b_readMemAddr(YMF278BChip* chip, offs_t address)
 {
 	if (address < chip->ROMSize)
-		return &chip->rom[address];
+		return &chip->rom[address&0x3fffff];
 	else if (address < chip->ROMSize + chip->RAMSize)
-		return &chip->ram[address - chip->ROMSize];
+		return &chip->ram[address - (chip->ROMSize&0x3fffff)];
 	else
 		return NULL; // TODO check
 }
@@ -638,6 +640,16 @@ void ymf278b_pcm_update(UINT8 ChipID, stream_sample_t** outputs, int samples)
 	{
 		/* memset is done by ymf262_update */
 		ymf262_update_one(chip->fmchip, outputs, samples);
+		// apply FM mixing level
+		vl = mix_level[chip->fm_l] - 8;	vl = chip->volume[vl];
+		vr = mix_level[chip->fm_r] - 8;	vr = chip->volume[vr];
+		// make FM softer by 3 db
+		vl = (vl * 0x16A) >> 8;	vr = (vr * 0x16A) >> 8;
+		for (j = 0; j < samples; j ++)
+		{
+			outputs[0][j] = (outputs[0][j] * vl) >> 15;
+			outputs[1][j] = (outputs[1][j] * vr) >> 15;
+		}
 	}
 	else
 	{
@@ -706,14 +718,15 @@ void ymf278b_pcm_update(UINT8 ChipID, stream_sample_t** outputs, int samples)
 			else
 				sl->stepptr += sl->step;
 
-			while (sl->stepptr >= 0x10000)
+			if (sl->stepptr >= 0x10000)
 			{
-				sl->stepptr -= 0x10000;
 				sl->sample1 = sl->sample2;
-				sl->pos ++;
-				if (sl->pos >= sl->endaddr)
-					sl->pos = sl->loopaddr;
+				
 				sl->sample2 = ymf278b_getSample(chip, sl);
+				sl->pos += (sl->stepptr >> 16);
+				sl->stepptr &= 0xFFFF;
+				if (sl->pos > sl->endaddr)
+					sl->pos = sl->pos - sl->endaddr + sl->loopaddr - 1;
 			}
 		}
 		ymf278b_advance(chip);
@@ -790,7 +803,8 @@ static void ymf278b_B_w(YMF278BChip *chip, UINT8 reg, UINT8 data)
 	switch(reg)
 	{
 		case 0x05:	// OPL3/OPL4 Enable
-			// actually Bit 1 enables OPL4 WaveTable Synth
+			// Bit 1 enables OPL4 WaveTable Synth
+			chip->exp = data;
 			ymf262_write(chip->fmchip, 3, data & ~0x02);
 			break;
 		default:
@@ -840,7 +854,7 @@ void ymf278b_C_w(YMF278BChip* chip, UINT8 reg, UINT8 data)
 			slot->startaddr = buf[2] | (buf[1] << 8) |
 								((buf[0] & 0x3F) << 16);
 			slot->loopaddr = buf[4] + (buf[3] << 8);
-			slot->endaddr  = (((buf[6] + (buf[5] << 8)) ^ 0xFFFF) + 1);
+			slot->endaddr  = ((buf[6] + (buf[5] << 8)) ^ 0xFFFF);
 			
 			if (chip->regs[reg + 4] & 0x080)
 				ymf278b_keyOnHelper(chip, slot);
@@ -1083,6 +1097,10 @@ void ymf278b_w(UINT8 ChipID, offs_t offset, UINT8 data)
 			break;
 
 		case 5:
+			// PCM regs are only accessible if NEW2 is set
+			if (~chip->exp & 2)
+				break;
+			
 			ymf278b_C_w(chip, chip->port_C, data);
 			break;
 
@@ -1111,7 +1129,7 @@ static void ymf278b_load_rom(YMF278BChip *chip)
 		ROMFileSize = 0x00200000;
 		ROMFile = (UINT8*)malloc(ROMFileSize);
 		memset(ROMFile, 0xFF, ROMFileSize);
-
+		
 #ifndef EMSCRIPTEN		
 		FileName = FindFile(ROM_FILENAME);
 #else
@@ -1147,14 +1165,14 @@ static void ymf278b_load_rom(YMF278BChip *chip)
 	return;
 }
 
-static void ymf278b_init(YMF278BChip *chip, int clock, void (*cb)(int))
+static int ymf278b_init(YMF278BChip *chip, int clock, void (*cb)(int))
 {
 	int rate;
 	
 	rate = clock / 768;
-	if (((CHIP_SAMPLING_MODE & 0x01) && rate < CHIP_SAMPLE_RATE) ||
-		CHIP_SAMPLING_MODE == 0x02)
-		rate = CHIP_SAMPLE_RATE;
+	//if (((CHIP_SAMPLING_MODE & 0x01) && rate < CHIP_SAMPLE_RATE) ||
+	//	CHIP_SAMPLING_MODE == 0x02)
+	//	rate = CHIP_SAMPLE_RATE;
 	chip->fmchip = ymf262_init(clock * 8 / 19, rate);
 	chip->FMEnabled = 0x00;
 	
@@ -1168,6 +1186,8 @@ static void ymf278b_init(YMF278BChip *chip, int clock, void (*cb)(int))
 	chip->RAMSize = 0x00080000;
 	chip->ram = (UINT8*)malloc(chip->RAMSize);
 	ymf278b_clearRam(chip);
+
+	return rate;
 }
 
 //static DEVICE_START( ymf278b )
@@ -1177,6 +1197,7 @@ int device_start_ymf278b(UINT8 ChipID, int clock)
 	const ymf278b_interface *intf;
 	int i;
 	YMF278BChip *chip;
+	int rate;
 
 	if (ChipID >= MAX_CHIPS)
 		return 0;
@@ -1187,20 +1208,24 @@ int device_start_ymf278b(UINT8 ChipID, int clock)
 	//intf = (device->static_config != NULL) ? (const ymf278b_interface *)device->static_config : &defintrf;
 	intf = &defintrf;
 
-	ymf278b_init(chip, clock, intf->irq_callback);
+	rate = ymf278b_init(chip, clock, intf->irq_callback);
 	//chip->stream = stream_create(device, 0, 2, device->clock/768, chip, ymf278b_pcm_update);
 
 	chip->memadr = 0; // avoid UMR
 
 	// Volume table, 1 = -0.375dB, 8 = -3dB, 256 = -96dB
 	for (i = 0; i < 256; i ++)
-		chip->volume[i] = 32768 * pow(2.0, (-0.375 / 6) * i);
+	{
+		int vol_mul = 0x20 - (i & 0x0F);	// 0x10 values per 6 db
+		int vol_shift = 5 + (i >> 4);		// approximation: -6 dB == divide by two (shift right)
+		chip->volume[i] = (0x8000 * vol_mul) >> vol_shift;
+	}
 	for (i = 256; i < 256 * 4; i ++)
 		chip->volume[i] = 0;
 	for (i = 0; i < 24; i ++)
 		chip->slots[i].Muted = 0x00;;
 
-	return clock/768;
+	return rate;
 }
 
 //static DEVICE_STOP( ymf278 )
@@ -1210,6 +1235,7 @@ void device_stop_ymf278b(UINT8 ChipID)
 	
 	ymf262_shutdown(chip->fmchip);
 	free(chip->rom);	chip->rom = NULL;
+	free(chip->ram);	chip->ram = NULL;
 	
 	return;
 }
@@ -1230,7 +1256,8 @@ void device_reset_ymf278b(UINT8 ChipID)
 		ymf278b_C_w(chip, i, 0);
 	
 	chip->wavetblhdr = chip->memmode = chip->memadr = 0;
-	chip->fm_l = chip->fm_r = chip->pcm_l = chip->pcm_r = 0;
+	chip->fm_l = chip->fm_r = 3;
+	chip->pcm_l = chip->pcm_r = 0;
 	//busyTime = time;
 	//loadTime = time;
 }
@@ -1252,6 +1279,20 @@ void ymf278b_write_rom(UINT8 ChipID, offs_t ROMSize, offs_t DataStart, offs_t Da
 		DataLength = ROMSize - DataStart;
 	
 	memcpy(chip->rom + DataStart, ROMData, DataLength);
+	
+	return;
+}
+
+void ymf278b_write_ram(UINT8 ChipID, offs_t DataStart, offs_t DataLength, const UINT8* RAMData)
+{
+	YMF278BChip *chip = &YMF278BData[ChipID];
+	
+	if (DataStart >= chip->RAMSize)
+		return;
+	if (DataStart + DataLength > chip->RAMSize)
+		DataLength = chip->RAMSize - DataStart;
+	
+	memcpy(chip->ram + DataStart, RAMData, DataLength);
 	
 	return;
 }

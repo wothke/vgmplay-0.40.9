@@ -35,18 +35,15 @@
 //#include "streams.h"
 #include "mamedef.h"
 #include <math.h>
-#include <memory.h>
-#include <malloc.h>
-#include "multipcm.h"
-
-#ifdef EMSCRIPTEN
 #include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
+#include "multipcm.h"
 
 //????
 #define MULTIPCM_CLOCKDIV   	(180.0)
+//#define SHOW_WARNINGS
+static UINT8 didWarn = 0x00;
 
 struct _Sample
 {
@@ -110,6 +107,7 @@ struct _MultiPCM
 	struct _SLOT Slots[28];
 	unsigned int CurSlot;
 	unsigned int Address;
+	unsigned int Bank;
 	unsigned int BankR,BankL;
 	float Rate;
 	UINT32 ROMMask;
@@ -351,7 +349,7 @@ static void WriteSlot(MultiPCM *ptChip,struct _SLOT *slot,int reg,unsigned char 
 			//according to YMF278 sample write causes some base params written to the regs (envelope+lfos)
 			//the game should never change the sample while playing.
 			{
-				struct _Sample *Sample=ptChip->Samples+slot->Regs[1];
+				struct _Sample *Sample=ptChip->Samples+slot->Regs[1]+((slot->Regs[2]&1)<<8);
 				WriteSlot(ptChip,slot,6,Sample->LFOVIB);
 				WriteSlot(ptChip,slot,7,Sample->AM);
 			}
@@ -373,7 +371,20 @@ static void WriteSlot(MultiPCM *ptChip,struct _SLOT *slot,int reg,unsigned char 
 			{
 				if(data&0x80)		//KeyOn
 				{
-					slot->Sample=ptChip->Samples+slot->Regs[1];
+					UINT16 sampleID = slot->Regs[1]+((slot->Regs[2]&1)<<8);
+					if (ptChip->Bank && sampleID >= 0x100)
+					{
+#ifdef SHOW_WARNINGS
+						if (! (didWarn & 0x02))
+						{
+							didWarn |= 0x02;
+							printf("YMW Warning: SEGA Banking + playing sample with ID 0x100+\n");
+						}
+#endif
+						sampleID &= 0x0FF;
+					}
+					slot->Sample=ptChip->Samples+sampleID;
+					//slot->Sample=ptChip->Samples+slot->Regs[1]+((slot->Regs[2]&1)<<8);
 					slot->Playing=1;
 					slot->Base=slot->Sample->Start;
 					slot->offset=0;
@@ -384,12 +395,24 @@ static void WriteSlot(MultiPCM *ptChip,struct _SLOT *slot,int reg,unsigned char 
 					slot->EG.state=ATTACK;
 					slot->EG.volume=0;
 
-					if(slot->Base>=0x100000)
+					if(ptChip->Bank && slot->Base>=0x100000)
 					{
-						if(slot->Pan&8)
-							slot->Base=(slot->Base&0xfffff)|(ptChip->BankL);
+#ifdef SHOW_WARNINGS
+						UINT8 otherBnk;
+						if (slot->Pan & 8)
+							otherBnk = (ptChip->Bank != ptChip->BankL);
 						else
-							slot->Base=(slot->Base&0xfffff)|(ptChip->BankR);
+							otherBnk = (ptChip->Bank != ptChip->BankR);
+						if (otherBnk)
+						{
+							if (! (didWarn & 0x01))
+							{
+								didWarn |= 0x01;
+								printf("YMW Warning: Playing sound on possibly unintended bank!\n");
+							}
+						}
+#endif
+						slot->Base=(slot->Base&0xfffff)|(ptChip->Bank);
 					}
 
 				}
@@ -683,6 +706,7 @@ int device_start_multipcm(UINT8 ChipID, int clock)
 
 	LFO_Init();
 	
+	didWarn = 0x00;
 	multipcm_set_bank(ChipID, 0x00, 0x00);
 	
 	return (int)(ptChip->Rate + 0.5);
@@ -744,6 +768,7 @@ void multipcm_set_bank(UINT8 ChipID, UINT32 leftoffs, UINT32 rightoffs)
 	MultiPCM *ptChip = &MultiPCMData[ChipID];
 	ptChip->BankL = leftoffs;
 	ptChip->BankR = rightoffs;
+	ptChip->Bank = ptChip->BankR ? ptChip->BankR : ptChip->BankL;
 }
 
 void multipcm_bank_write(UINT8 ChipID, UINT8 offset, UINT16 data)
@@ -754,6 +779,14 @@ void multipcm_bank_write(UINT8 ChipID, UINT8 offset, UINT16 data)
 		ptChip->BankL = data << 16;
 	if (offset & 0x02)
 		ptChip->BankR = data << 16;
+	ptChip->Bank = ptChip->BankR ? ptChip->BankR : ptChip->BankL;
+#ifdef SHOW_WARNINGS
+	if (ptChip->BankL != 0 && ptChip->BankR != 0 && ptChip->BankL != ptChip->BankR)
+		//printf("Bank L/R mismatch: 0x%X != 0x%X\n", ptChip->BankL, ptChip->BankR);
+		printf("YMW Banks: 0x%X != 0x%X  \n", ptChip->BankL, ptChip->BankR);
+	else
+		printf("YMW Banks: 0x%X / 0x%X  \n", ptChip->BankL, ptChip->BankR);
+#endif
 	
 	return;
 }
@@ -768,7 +801,7 @@ void multipcm_write_rom(UINT8 ChipID, offs_t ROMSize, offs_t DataStart, offs_t D
 	
 	if (ptChip->ROMSize != ROMSize)
 	{
-		ptChip->ROM = (UINT8*)realloc(ptChip->ROM, ROMSize);
+		ptChip->ROM = (INT8*)realloc(ptChip->ROM, ROMSize);
 		ptChip->ROMSize = ROMSize;
 		
 		for (ptChip->ROMMask = 1; ptChip->ROMMask < ROMSize; ptChip->ROMMask <<= 1)

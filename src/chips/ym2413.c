@@ -40,16 +40,11 @@ to do:
 #include <stdio.h>
 #include <math.h>
 #include "mamedef.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 //#include "sndintrf.h"
 #include "ym2413.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 /* output final shift */
 #if (SAMPLE_BITS==16)

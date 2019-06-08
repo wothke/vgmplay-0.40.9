@@ -72,19 +72,13 @@ Revision History:
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 //#include "sndintrf.h"
 #include "fmopl.h"
 #if BUILD_Y8950
 #include "ymdeltat.h"
-#endif
-
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
 #endif
 
 
@@ -2215,9 +2209,9 @@ static unsigned char OPLRead(FM_OPL *OPL,int a)
 		if(OPL->type&OPL_TYPE_ADPCM)
 		{
 #ifdef _DEBUG
-			logerror("Y8950 A/D convertion is accessed but not implemented !\n");
+			logerror("Y8950 A/D conversion is accessed but not implemented !\n");
 #endif
-			return 0x80; /* 2's complement PCM data - result from A/D convertion */
+			return 0x80; /* 2's complement PCM data - result from A/D conversion */
 		}
 		return 0;
 	}
@@ -2550,6 +2544,10 @@ void *y8950_init(UINT32 clock, UINT32 rate)
 	FM_OPL *Y8950 = OPLCreate(clock,rate,OPL_TYPE_Y8950);
 	if (Y8950)
 	{
+		Y8950->deltat->memory = NULL;
+		Y8950->deltat->memory_size = 0x00;
+		Y8950->deltat->memory_mask = 0x00;
+
 		Y8950->deltat->status_set_handler = Y8950_deltat_status_set;
 		Y8950->deltat->status_reset_handler = Y8950_deltat_status_reset;
 		Y8950->deltat->status_change_which_chip = Y8950;

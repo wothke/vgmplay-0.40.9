@@ -116,7 +116,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <math.h>
-#include <malloc.h>
 
 #include "mamedef.h"
 //#ifndef __RAINE__
@@ -3842,9 +3841,9 @@ UINT8 ym2608_read(void *chip,int a)
 			if(addr == 0x0f)
 			{
 #ifdef _DEBUG
-				logerror("YM2608 A/D convertion is accessed but not implemented !\n");
+				logerror("YM2608 A/D conversion is accessed but not implemented !\n");
 #endif
-				ret = 0x80; /* 2's complement PCM data - result from A/D convertion */
+				ret = 0x80; /* 2's complement PCM data - result from A/D conversion */
 			}
 		}
 		break;
@@ -4425,11 +4424,6 @@ void ym2610_reset_chip(void *chip)
 	}
 	else
 		F2610->deltaT.memory_size = dev->machine->region(name)->bytes();*/
-	F2610->pcmbuf   = NULL;
-	F2610->pcm_size = 0x00;
-	F2610->deltaT.memory = NULL;
-	F2610->deltaT.memory_size = 0x00;
-	F2610->deltaT.memory_mask = 0x00;
 
 	/* Reset Prescaler */
 	OPNSetPres( OPN, 6*24, 6*24, 4*2); /* OPN 1/6 , SSG 1/4 */

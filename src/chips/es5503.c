@@ -38,7 +38,7 @@
 
 //#include "emu.h"
 //#include "streams.h"
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include "mamedef.h"
 #include "es5503.h"
@@ -145,7 +145,8 @@ static void es5503_halt_osc(ES5503Chip *chip, int onum, int type, UINT32 *accumu
 	}
 
 	// if swap mode, start the partner
-	if ((mode == MODE_SWAP) || (omode == MODE_SWAP))
+	// Note: The swap mode fix breaks Silpheed and other games.
+	if ((mode == MODE_SWAP) /*|| (omode == MODE_SWAP)*/)
 	{
 		pPartner->control &= ~1;	// clear the halt bit
 		pPartner->accumulator = 0;  // and make sure it starts from the top (does this also need phase preservation?)

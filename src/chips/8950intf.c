@@ -16,6 +16,7 @@
 * NOTES
 *
 ******************************************************************************/
+#include <stddef.h>	// for NULL
 #include "mamedef.h"
 //#include "attotime.h"
 //#include "sndintrf.h"
@@ -24,12 +25,6 @@
 #include "8950intf.h"
 //#include "fm.h"
 #include "fmopl.h"
-
-#include <memory.h>
-
-#ifndef EMSCRIPTEN
-#define NULL	((void *)0)
-#endif
 
 
 typedef struct _y8950_state y8950_state;

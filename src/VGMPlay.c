@@ -6,7 +6,6 @@
 
 /*3456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456
 0000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999*/
-// TODO: Callback "ChangeSampleRate" to fix YM2203's AY8910
 
 // Mixer Muting ON:
 //		Mixer's FM Volume is set to 0 or Mute	-> absolutely muted
@@ -23,7 +22,8 @@
 //
 //#define ADDITIONAL_FORMATS
 //#define CONSOLE_MODE
-//#define VGM_BIG_ENDIAN
+//#define VGM_LITTLE_ENDIAN	// enable optimizations for Little Endian systems
+//#define VGM_BIG_ENDIAN	// enable optimizations for Big Endian systems
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,7 +46,29 @@
 #ifndef EMSCRIPTEN
 #include <pthread.h>	// for pthread functions
 #endif
+// (suitable?) Apple substitute for clock_gettime()
+//#ifdef __MACH__
+#if 0	// not required in Mac OS X 10.12 and later
+#include <mach/mach_time.h>
+#define CLOCK_REALTIME	0
+#define CLOCK_MONOTONIC	0
+int clock_gettime(int clk_id, struct timespec *t)
+{
+	mach_timebase_info_data_t timebase;
+	mach_timebase_info(&timebase);
+	uint64_t time;
+	time = mach_absolute_time();
+	double nseconds = ((double)time * (double)timebase.numer)/((double)timebase.denom);
+	double seconds = ((double)time * (double)timebase.numer)/((double)timebase.denom * 1e9);
+	t->tv_sec = seconds;
+	t->tv_nsec = nseconds;
+	return 0;
+}
+#else
 #include <time.h>		// for clock_gettime()
+
+#endif
+
 #include <unistd.h>		// for usleep()
 
 #define MAX_PATH	PATH_MAX
@@ -287,6 +309,7 @@ UINT32 PauseTime;	// current Pause Time
 
 float VolumeLevel;
 bool SurroundSound;
+UINT8 HardStopOldVGMs;
 bool FadeRAWLog;
 //bool FullBufFill;	// Fill Buffer until it's full
 bool PauseEmulate;
@@ -302,6 +325,7 @@ bool FMForce;
 //bool FMAccurate;
 bool FMBreakFade;
 float FMVol;
+bool FMOPL2Pan;
 
 CHIPS_OPTION ChipOpts[0x02];
 
@@ -425,6 +449,7 @@ void VGMPlay_Init(void)
 	FadeTime = 5000;
 	PauseTime = 0;
 	
+	HardStopOldVGMs = 0x00;
 	FadeRAWLog = false;
 	VolumeLevel = 1.0f;
 	//FullBufFill = false;
@@ -433,6 +458,7 @@ void VGMPlay_Init(void)
 	//FMAccurate = false;
 	FMBreakFade = false;
 	FMVol = 0.0f;
+	FMOPL2Pan = false;
 	SurroundSound = false;
 	VGMMaxLoop = 0x02;
 	VGMPbRate = 0;
@@ -469,8 +495,10 @@ void VGMPlay_Init(void)
 		}
 		ChipOpts[CurCSet].GameBoy.SpecialFlags = 0x0003;
 		// default options, 0x8000 skips the option write and keeps NSFPlay's default values
+		// TODO: Is this really necessary??
 		ChipOpts[CurCSet].NES.SpecialFlags = 0x8000 |
 										(0x00 << 12) | (0x3B << 4) | (0x01 << 2) | (0x03 << 0);
+		ChipOpts[CurCSet].SCSP.SpecialFlags = 0x0001;	// bypass SCSP DSP
 		
 		TempCAud = CA_Paired[CurCSet];
 		for (CurChip = 0x00; CurChip < 0x03; CurChip ++, TempCAud ++)
@@ -506,13 +534,13 @@ void VGMPlay_Init(void)
 #ifdef _DEBUG
 	if (sizeof(CHIP_AUDIO) != sizeof(CAUD_ATTR) * CHIP_COUNT)
 	{
-		printf("Fatal Error! ChipAudio structure invalid!\n");
+		fprintf(stderr, "Fatal Error! ChipAudio structure invalid!\n");
 		getchar();
 		exit(-1);
 	}
 	if (sizeof(CHIPS_OPTION) != sizeof(CHIP_OPTS) * CHIP_COUNT)
 	{
-		printf("Fatal Error! ChipOpts structure invalid!\n");
+		fprintf(stderr, "Fatal Error! ChipOpts structure invalid!\n");
 		getchar();
 		exit(-1);
 	}
@@ -623,39 +651,124 @@ char* FindFile(const char* FileName)
 	char** CurPath;
 	UINT32 NameLen;
 	UINT32 PathLen;
+	UINT32 FullLen;
 	FILE* hFile;
 	
 	NameLen = strlen(FileName);
 	//printf("Find File: %s\n", FileName);
 	
-	// go to end of the list
+	// go to end of the list + get size of largest path
 	// (The first entry has the lowest priority.)
+	PathLen = 0;
 	CurPath = AppPaths;
 	while(*CurPath != NULL)
-		CurPath ++;
-	CurPath --;
-	
-	while(CurPath >= AppPaths)
 	{
-		PathLen = strlen(*CurPath);
-		FullName = (char*)malloc(PathLen + NameLen + 0x01);
+		FullLen = strlen(*CurPath);
+		if (FullLen > PathLen)
+			PathLen = FullLen;
+		CurPath ++;
+	}
+	CurPath --;
+	FullLen = PathLen + NameLen;
+	FullName = (char*)malloc(FullLen + 1);
+	
+	hFile = NULL;
+	for (; CurPath >= AppPaths; CurPath --)
+	{
 		strcpy(FullName, *CurPath);
 		strcat(FullName, FileName);
 		
 		//printf("Trying path: %s\n", FullName);
 		hFile = fopen(FullName, "r");
 		if (hFile != NULL)
+			break;
+	}
+	
+	if (hFile != NULL)
+	{
+		fclose(hFile);
+		//printf("Success!\n");
+		return FullName;	// The caller has to free the string.
+	}
+	else
+	{
+		free(FullName);
+		//printf("Fail!\n");
+		return NULL;
+	}
+}
+
+char* FindFile_List(const char** FileNameList)
+{
+	char* FullName;
+	const char** CurFile;
+	char** CurPath;
+	char* PathPtr;
+	UINT32 NameLen;
+	UINT32 PathLen;
+	UINT32 FullLen;
+	FILE* hFile;
+	
+	NameLen = 0;
+	CurFile = FileNameList;
+	while(*CurFile != NULL)
+	{
+		FullLen = strlen(*CurFile);
+		if (FullLen > NameLen)
+			NameLen = FullLen;
+		CurFile ++;
+	}
+	
+	// go to end of the list + get size of largest path
+	// (The first entry has the lowest priority.)
+	PathLen = 0;
+	CurPath = AppPaths;
+	while(*CurPath != NULL)
+	{
+		FullLen = strlen(*CurPath);
+		if (FullLen > PathLen)
+			PathLen = FullLen;
+		CurPath ++;
+	}
+	CurPath --;
+	FullLen = PathLen + NameLen;
+	FullName = (char*)malloc(FullLen + 1);
+	
+	hFile = NULL;
+	while(CurPath >= AppPaths)
+	{
+		strcpy(FullName, *CurPath);
+		PathPtr = FullName + strlen(FullName);
+		CurFile = FileNameList;
+		while(*CurFile != NULL)
 		{
-			fclose(hFile);
-			//printf("Success!\n");
-			return FullName;
+			strcpy(PathPtr, *CurFile);
+			
+			//printf("Trying path: %s\n", FullName);
+			hFile = fopen(FullName, "r");
+			if (hFile != NULL)
+				break;
+			
+			CurFile ++;
 		}
+		if (hFile != NULL)
+			break;
 		
 		CurPath --;
 	}
 	
-	//printf("Fail!\n");
-	return NULL;
+	if (hFile != NULL)
+	{
+		fclose(hFile);
+		//printf("Success!\n");
+		return FullName;	// The caller has to free the string.
+	}
+	else
+	{
+		free(FullName);
+		//printf("Fail!\n");
+		return NULL;
+	}
 }
 #endif
 
@@ -939,7 +1052,7 @@ void PlayVGM(void)
 		ResetPBTimer = false;
 		if (StartThread())
 		{
-			printf("Error starting Playing Thread!\n");
+			fprintf(stderr, "Error starting Playing Thread!\n");
 			return;
 		}
 #ifdef CONSOLE_MODE
@@ -1278,7 +1391,8 @@ static bool OpenVGMFile_Internal(gzFile hFile, UINT32 FileSize)
 	UINT32 CurPos;
 	UINT32 HdrLimit;
 	
-	gzseek(hFile, 0x00, SEEK_SET);
+	//gzseek(hFile, 0x00, SEEK_SET);
+	gzrewind(hFile);
 	gzgetLE32(hFile, &fccHeader);
 	if (fccHeader != FCC_VGM)
 		return false;
@@ -1290,26 +1404,33 @@ static bool OpenVGMFile_Internal(gzFile hFile, UINT32 FileSize)
 	VGMDataLen = FileSize;
 	
 	gzseek(hFile, 0x00, SEEK_SET);
+	//gzrewind(hFile);
 	ReadVGMHeader(hFile, &VGMHead);
+	if (VGMHead.fccVGM != FCC_VGM)
+	{
+		fprintf(stderr, "VGM signature matched on the first read, but not on the second one!\n");
+		fprintf(stderr, "This is a known zlib bug where gzseek fails. Please install a fixed zlib.\n");
+		return false;
+	}
 	
 	VGMSampleRate = 44100;
 	if (! VGMDataLen)
 		VGMDataLen = VGMHead.lngEOFOffset;
 	if (! VGMHead.lngEOFOffset || VGMHead.lngEOFOffset > VGMDataLen)
 	{
-		printf("Warning! Invalid EOF Offset 0x%02X! (should be: 0x%02X)\n",
+		fprintf(stderr, "Warning! Invalid EOF Offset 0x%02X! (should be: 0x%02X)\n",
 				VGMHead.lngEOFOffset, VGMDataLen);
 		VGMHead.lngEOFOffset = VGMDataLen;
 	}
 	if (VGMHead.lngLoopOffset && ! VGMHead.lngLoopSamples)
 	{
 		// 0-Sample-Loops causes the program to hangs in the playback routine
-		printf("Warning! Ignored Zero-Sample-Loop!\n");
+		fprintf(stderr, "Warning! Ignored Zero-Sample-Loop!\n");
 		VGMHead.lngLoopOffset = 0x00000000;
 	}
 	if (VGMHead.lngDataOffset < 0x00000040)
 	{
-		printf("Warning! Invalid Data Offset 0x%02X!\n", VGMHead.lngDataOffset);
+		fprintf(stderr, "Warning! Invalid Data Offset 0x%02X!\n", VGMHead.lngDataOffset);
 		VGMHead.lngDataOffset = 0x00000040;
 	}
 	
@@ -1321,7 +1442,8 @@ static bool OpenVGMFile_Internal(gzFile hFile, UINT32 FileSize)
 	VGMData = (UINT8*)malloc(VGMDataLen);
 	if (VGMData == NULL)
 		return false;
-	gzseek(hFile, 0x00, SEEK_SET);
+	//gzseek(hFile, 0x00, SEEK_SET);
+	gzrewind(hFile);
 	gzread(hFile, VGMData, VGMDataLen);
 	
 	// Read Extra Header Data
@@ -1700,7 +1822,8 @@ static wchar_t* ReadWStrFromFile(gzFile hFile, UINT32* FilePos, UINT32 EOFPos)
 	if (TextStr == NULL)
 		return NULL;
 	
-	gzseek(hFile, CurPos, SEEK_SET);
+	if ((UINT32)gztell(hFile) != CurPos)
+		gzseek(hFile, CurPos, SEEK_SET);
 	TempStr = TextStr - 1;
 	StrLen = 0x00;
 	do
@@ -1782,7 +1905,8 @@ static UINT32 GetVGMFileInfo_Internal(gzFile hFile, UINT32 FileSize,
 	UINT32 TempLng;
 	VGM_HEADER TempHead;
 	
-	gzseek(hFile, 0x00, SEEK_SET);
+	//gzseek(hFile, 0x00, SEEK_SET);
+	gzrewind(hFile);
 	gzgetLE32(hFile, &fccHeader);
 	if (fccHeader != FCC_VGM)
 		return 0x00;
@@ -1790,7 +1914,8 @@ static UINT32 GetVGMFileInfo_Internal(gzFile hFile, UINT32 FileSize,
 	if (RetVGMHead == NULL && RetGD3Tag == NULL)
 		return FileSize;
 	
-	gzseek(hFile, 0x00, SEEK_SET);
+	//gzseek(hFile, 0x00, SEEK_SET);
+	gzrewind(hFile);
 	ReadVGMHeader(hFile, &TempHead);
 	
 	if (! TempHead.lngEOFOffset || TempHead.lngEOFOffset > FileSize)
@@ -1947,7 +2072,7 @@ const char* GetChipName(UINT8 ChipID)
 	const char* CHIP_STRS[CHIP_COUNT] = 
 	{	"SN76496", "YM2413", "YM2612", "YM2151", "SegaPCM", "RF5C68", "YM2203", "YM2608",
 		"YM2610", "YM3812", "YM3526", "Y8950", "YMF262", "YMF278B", "YMF271", "YMZ280B",
-		"RF5C164", "PWM", "AY8910", "GameBoy", "NES APU", "MultiPCM", "uPD7759", "OKIM6258",
+		"RF5C164", "PWM", "AY8910", "GameBoy", "NES APU", "YMW258", "uPD7759", "OKIM6258",
 		"OKIM6295", "K051649", "K054539", "HuC6280", "C140", "K053260", "Pokey", "QSound",
 		"SCSP", "WSwan", "VSU", "SAA1099", "ES5503", "ES5506", "X1-010", "C352",
 		"GA20"};
@@ -1973,7 +2098,6 @@ const char* GetChipName(UINT8 ChipID)
 const char* GetAccurateChipName(UINT8 ChipID, UINT8 SubType)
 {
 	const char* RetStr;
-	static char TempStr[0x10];
 	
 	if ((ChipID & 0x7F) >= CHIP_COUNT)
 		return NULL;
@@ -2002,10 +2126,13 @@ const char* GetAccurateChipName(UINT8 ChipID, UINT8 SubType)
 				RetStr = "SN94624";
 				break;
 			case 0x06:
-				RetStr = "NCR7496";
+				RetStr = "SEGA PSG";
 				break;
 			case 0x07:
-				RetStr = "SEGA PSG";
+				RetStr = "NCR8496";
+				break;
+			case 0x08:
+				RetStr = "PSSJ-3";
 				break;
 			default:
 				RetStr = "SN76496";
@@ -2020,6 +2147,12 @@ const char* GetAccurateChipName(UINT8 ChipID, UINT8 SubType)
 	case 0x01:
 		if (ChipID & 0x80)
 			RetStr = "VRC7";
+		break;
+	case 0x02:
+		if (! (ChipID & 0x80))
+			RetStr = "YM2612";
+		else
+			RetStr = "YM3438";
 		break;
 	case 0x04:
 		RetStr = "Sega PCM";
@@ -2071,6 +2204,12 @@ const char* GetAccurateChipName(UINT8 ChipID, UINT8 SubType)
 		else
 			RetStr = "NES APU + FDS";
 		break;
+	case 0x19:
+		if (! (ChipID & 0x80))
+			RetStr = "K051649";
+		else
+			RetStr = "K052539";
+		break;
 	case 0x1C:
 		switch(SubType)
 		{
@@ -2079,7 +2218,7 @@ const char* GetAccurateChipName(UINT8 ChipID, UINT8 SubType)
 			RetStr = "C140";
 			break;
 		case 0x02:
-			RetStr = "C140 (219)";
+			RetStr = "C219";
 			break;
 		}
 		break;
@@ -2120,7 +2259,7 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 	case 0x00:
 		Clock = FileHead->lngHzPSG;
 		AllowBit31 = 0x01;	// T6W28 Mode
-		if (RetSubType != NULL && ! (Clock & 0x80000000))	// The T6W28 is handles differently.
+		if (RetSubType != NULL && ! (Clock & 0x80000000))	// The T6W28 is handled differently.
 		{
 			switch(FileHead->bytPSG_SRWidth)
 			{
@@ -2132,9 +2271,14 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 				break;
 			case 0x10:	//  0x8000
 				if (FileHead->shtPSG_Feedback == 0x0009)
-					SubType = 0x07;	// SEGA PSG
+					SubType = 0x06;	// SEGA PSG
 				else if (FileHead->shtPSG_Feedback == 0x0022)
-					SubType = 0x06;	// NCR7496
+				{
+					if (FileHead->bytPSG_Flags & 0x10)	// if Tandy noise mode enabled
+						SubType = (FileHead->bytPSG_Flags & 0x02) ? 0x07 : 0x08;	// NCR8496 / PSSJ-3
+					else
+						SubType = 0x07;	// NCR8496
+				}
 				break;
 			case 0x11:	// 0x10000
 				if (FileHead->bytPSG_Flags & 0x08)	// Clock Divider == 1?
@@ -2150,12 +2294,13 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 				03 SN76494		0x10000, 0x04, 0x08, FALSE, FALSE, 1, TRUE		0C	11	0D (00|04|08|01)
 				04 SN76496		0x10000, 0x04, 0x08, FALSE, FALSE, 8, TRUE		0C	11	05 (00|04|00|01) [same as SN76489A]
 				05 SN94624		 0x4000, 0x01, 0x02, TRUE,  FALSE, 1, TRUE		03	0F	0F (02|04|08|01) [unverified, SN76489A without /8]
-				06 NCR7496		 0x8000, 0x02, 0x20, FALSE, FALSE, 8, TRUE		22	10	05 (00|04|00|01) [unverified]
-				07 GameGear PSG	 0x8000, 0x01, 0x08, TRUE,  TRUE,  8, FALSE		09	10	02 (02|00|00|00)
-				07 SEGA VDP PSG	 0x8000, 0x01, 0x08, TRUE,  FALSE, 8, FALSE		09	10	06 (02|04|00|00)
+				06 GameGear PSG	 0x8000, 0x01, 0x08, TRUE,  TRUE,  8, FALSE		09	10	02 (02|00|00|00)
+				06 SEGA VDP PSG	 0x8000, 0x01, 0x08, TRUE,  FALSE, 8, FALSE		09	10	06 (02|04|00|00)
+				07 NCR8496		 0x8000, 0x02, 0x20, TRUE,  FALSE, 8, TRUE		22	10	07 (02|04|00|01)
+				08 PSSJ-3		 0x8000, 0x02, 0x20, FALSE, FALSE, 8, TRUE		22	10	05 (00|04|00|01)
 				01 U8106		 0x4000, 0x01, 0x02, TRUE,  FALSE, 8, TRUE		03	0F	07 (02|04|00|01) [unverified, same as SN76489]
 				02 Y2404		0x10000, 0x04, 0x08, FALSE, FALSE; 8, TRUE		0C	11	05 (00|04|00|01) [unverified, same as SN76489A]
-				-- T6W28		 0x4000, 0x01, 0x04, ????,  FALSE, 8, ????		05	0F	?? (??|??|00|01) [It IS stereo, but not in GameGear way].
+				-- T6W28		0x10000, 0x04, 0x08, ????,  FALSE, 8, ????		0C	11	?? (??|??|00|01) [It IS stereo, but not in GameGear way].
 			*/
 		}
 		break;
@@ -2165,6 +2310,7 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 		break;
 	case 0x02:
 		Clock = FileHead->lngHzYM2612;
+		AllowBit31 = 0x01;	// YM3438 Mode
 		break;
 	case 0x03:
 		Clock = FileHead->lngHzYM2151;
@@ -2247,6 +2393,7 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 		break;
 	case 0x19:
 		Clock = FileHead->lngHzK051649;
+		AllowBit31 = 0x01;	// SCC/SCC+ Bit
 		break;
 	case 0x1A:
 		Clock = FileHead->lngHzK054539;
@@ -2293,6 +2440,7 @@ UINT32 GetChipClock(VGM_HEADER* FileHead, UINT8 ChipID, UINT8* RetSubType)
 		break;
 	case 0x27:
 		Clock = FileHead->lngHzC352;
+		AllowBit31 = 0x01;	// disable rear channels
 		break;
 	case 0x28:
 		Clock = FileHead->lngHzGA20;
@@ -2339,7 +2487,7 @@ static UINT16 GetChipVolume(VGM_HEADER* FileHead, UINT8 ChipID, UINT8 ChipNum, U
 		0x80, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x98,			// 08-0F
 		0x80, 0xE0/*0xCD*/, 0x100, 0xC0, 0x100, 0x40, 0x11E, 0x1C0,		// 10-17
 		0x100/*110*/, 0xA0, 0x100, 0x100, 0x100, 0xB3, 0x100, 0x100,	// 18-1F
-		0x100, 0x100, 0x100, 0x100, 0x40, 0x20, 0x100, 0x40,			// 20-27
+		0x20, 0x100, 0x100, 0x100, 0x40, 0x20, 0x100, 0x40,			// 20-27
 		0x280};
 	UINT16 Volume;
 	UINT8 CurChp;
@@ -2593,7 +2741,6 @@ static void Chips_GeneralActions(UINT8 Mode)
 			ym2612_set_options((UINT8)ChipOpts[0x00].YM2612.SpecialFlags);
 			ChipOpts[0x01].YM2612.EmuCore = ChipOpts[0x00].YM2612.EmuCore;
 			ChipOpts[0x01].YM2612.SpecialFlags = ChipOpts[0x00].YM2612.SpecialFlags;
-			
 			ChipCnt = (VGMHead.lngHzYM2612 & 0x40000000) ? 0x02 : 0x01;
 			for (CurChip = 0x00; CurChip < ChipCnt; CurChip ++)
 			{
@@ -2679,7 +2826,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				ChipClk = GetChipClock(&VGMHead, (CurChip << 7) | CAA->ChipType, NULL);
 				CAA->SmpRate = device_start_ym2203(CurChip, ChipClk, COpt->SpecialFlags & 0x01,
 													VGMHead.bytAYFlagYM2203,
-													&CAA->Paired->SmpRate);
+													(int*)&CAA->Paired->SmpRate);
 				CAA->StreamUpdate = &ym2203_stream_update;
 				CAA->Paired->StreamUpdate = &ym2203_stream_update_ay;
 				ym2203_set_srchg_cb(CurChip, &ChangeChipSampleRate, CAA, CAA->Paired);
@@ -2709,7 +2856,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				ChipClk = GetChipClock(&VGMHead, (CurChip << 7) | CAA->ChipType, NULL);
 				CAA->SmpRate = device_start_ym2608(CurChip, ChipClk, COpt->SpecialFlags & 0x01,
 													VGMHead.bytAYFlagYM2608,
-													&CAA->Paired->SmpRate);
+													(int*)&CAA->Paired->SmpRate);
 				CAA->StreamUpdate = &ym2608_stream_update;
 				CAA->Paired->StreamUpdate = &ym2608_stream_update_ay;
 				ym2608_set_srchg_cb(CurChip, &ChangeChipSampleRate, CAA, CAA->Paired);
@@ -2740,7 +2887,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				
 				ChipClk = GetChipClock(&VGMHead, (CurChip << 7) | CAA->ChipType, NULL);
 				CAA->SmpRate = device_start_ym2610(CurChip, ChipClk, COpt->SpecialFlags & 0x01,
-													&CAA->Paired->SmpRate);
+													(int*)&CAA->Paired->SmpRate);
 				CAA->StreamUpdate = (ChipClk & 0x80000000) ? ym2610b_stream_update :
 															ym2610_stream_update;
 				CAA->Paired->StreamUpdate = &ym2610_stream_update_ay;
@@ -3221,6 +3368,9 @@ static void Chips_GeneralActions(UINT8 Mode)
 		}
 		if (VGMHead.lngHzQSound)
 		{
+			qsound_set_emu_core(ChipOpts[0x00].QSound.EmuCore);
+			ChipOpts[0x01].QSound.EmuCore = ChipOpts[0x00].QSound.EmuCore;
+			
 			//ChipVol = 0x100;
 			ChipCnt = (VGMHead.lngHzQSound & 0x40000000) ? 0x02 : 0x01;
 			for (CurChip = 0x00; CurChip < ChipCnt; CurChip ++)
@@ -3241,7 +3391,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 			scsp_set_options((UINT8)ChipOpts[0x00].SCSP.SpecialFlags);
 			ChipOpts[0x01].SCSP.SpecialFlags = ChipOpts[0x00].SCSP.SpecialFlags;
 			
-			//ChipVol = 0x100;
+			//ChipVol = 0x20;
 			ChipCnt = (VGMHead.lngHzSCSP & 0x40000000) ? 0x02 : 0x01;
 			for (CurChip = 0x00; CurChip < ChipCnt; CurChip ++)
 			{
@@ -3253,7 +3403,7 @@ static void Chips_GeneralActions(UINT8 Mode)
 				CAA->StreamUpdate = &SCSP_Update;
 				
 				CAA->Volume = GetChipVolume(&VGMHead, CAA->ChipType, CurChip, ChipCnt);
-				AbsVol += CAA->Volume;
+				AbsVol += CAA->Volume * 8;
 			}
 		}
 		if (VGMHead.lngHzWSwan)
@@ -3362,6 +3512,9 @@ static void Chips_GeneralActions(UINT8 Mode)
 		}
 		if (VGMHead.lngHzC352)
 		{
+			c352_set_options((UINT8)ChipOpts[0x00].C352.SpecialFlags);
+			ChipOpts[0x01].C352.SpecialFlags = ChipOpts[0x00].C352.SpecialFlags;
+			
 			//ChipVol = 0x40;
 			ChipCnt = (VGMHead.lngHzC352 & 0x40000000) ? 0x02 : 0x01;
 			for (CurChip = 0x00; CurChip < ChipCnt; CurChip ++)
@@ -3914,7 +4067,7 @@ static UINT8 StartThread(void)
 }
 
 static UINT8 StopThread(void)
-{	
+{
 #ifdef WIN32
 	UINT16 Cnt;
 #endif
@@ -4169,7 +4322,7 @@ static void AddPCMData(UINT8 Type, UINT32 DataSize, const UINT8* Data)
 		}
 	}
 	if (BankSize != TempBnk->DataSize)
-		printf("Error reading Data Block! Data Size conflict!\n");
+		fprintf(stderr, "Error reading Data Block! Data Size conflict!\n");
 	TempPCM->DataSize += BankSize;
 	
 	// realloc may've moved the Bank block, so refresh all DAC Streams
@@ -4257,12 +4410,12 @@ static void DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 			Ent2B = (UINT16*)PCMTbl.Entries;
 			if (! PCMTbl.EntryCount)
 			{
-				printf("Error loading table-compressed data block! No table loaded!\n");
+				fprintf(stderr, "Error loading table-compressed data block! No table loaded!\n");
 				return;
 			}
 			else if (BitDec != PCMTbl.BitDec || BitCmp != PCMTbl.BitCmp)
 			{
-				printf("Warning! Data block and loaded value table incompatible!\n");
+				fprintf(stderr, "Warning! Data block and loaded value table incompatible!\n");
 				return;
 			}
 		}
@@ -4303,7 +4456,7 @@ static void DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 	}
 	
 	//Time = GetTickCount() - Time;
-	//printf("Decompression Time: %lu\n", Time);
+	//printf("Decompression Time: %u\n", Time);
 	
 	return;
 }*/
@@ -4353,6 +4506,8 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 		BitCmp = Data[0x06];
 		CmpSubType = Data[0x07];
 		AddVal = ReadLE16(&Data[0x08]);
+		Ent1B = NULL;
+		Ent2B = NULL;
 		
 		if (CmpSubType == 0x02)
 		{
@@ -4361,13 +4516,13 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 			if (! PCMTbl.EntryCount)
 			{
 				Bank->DataSize = 0x00;
-				printf("Error loading table-compressed data block! No table loaded!\n");
+				fprintf(stderr, "Error loading table-compressed data block! No table loaded!\n");
 				return false;
 			}
 			else if (BitDec != PCMTbl.BitDec || BitCmp != PCMTbl.BitCmp)
 			{
 				Bank->DataSize = 0x00;
-				printf("Warning! Data block and loaded value table incompatible!\n");
+				fprintf(stderr, "Warning! Data block and loaded value table incompatible!\n");
 				return false;
 			}
 		}
@@ -4378,6 +4533,7 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 		InShift = 0;
 		OutShift = BitDec - BitCmp;
 		OutDataEnd = Bank->Data + Bank->DataSize;
+		OutVal = 0x0000;
 		
 		for (OutPos = Bank->Data; OutPos < OutDataEnd && InPos < InDataEnd; OutPos += ValSize)
 		{
@@ -4436,7 +4592,7 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 			if (ValSize == 0x01)
 				*((UINT8*)OutPos) = (UINT8)OutVal;
 			else //if (ValSize == 0x02)
-				*((UINT16*)OutPos) = (UINT16)OutVal; // EMSCRIPTEN potentially unaligned
+				*((UINT16*)OutPos) = (UINT16)OutVal;// EMSCRIPTEN potentially unaligned
 #else
 			if (ValSize == 0x01)
 			{
@@ -4460,13 +4616,13 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 		if (! PCMTbl.EntryCount)
 		{
 			Bank->DataSize = 0x00;
-			printf("Error loading table-compressed data block! No table loaded!\n");
+			fprintf(stderr, "Error loading table-compressed data block! No table loaded!\n");
 			return false;
 		}
 		else if (BitDec != PCMTbl.BitDec || BitCmp != PCMTbl.BitCmp)
 		{
 			Bank->DataSize = 0x00;
-			printf("Warning! Data block and loaded value table incompatible!\n");
+			fprintf(stderr, "Warning! Data block and loaded value table incompatible!\n");
 			return false;
 		}
 		
@@ -4517,16 +4673,13 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 			case 0x02:
 #ifndef VGM_BIG_ENDIAN
 				AddVal = Ent2B[InVal];
-#else
-				AddVal = ReadLE16((UINT8*)&Ent2B[InVal]);
-#endif
 				OutVal += AddVal;
 				OutVal &= OutMask;
-#ifndef VGM_BIG_ENDIAN
-//				*((UINT16*)OutPos) = (UINT16)OutVal;	EMSCRIPTEN potential alignment issue
-				OutPos[0x00] = (UINT8)((OutVal & 0xFF00) >> 8);
-				OutPos[0x01] = (UINT8)((OutVal & 0x00FF) >> 0);
+				*((UINT16*)OutPos) = (UINT16)OutVal;
 #else
+				AddVal = ReadLE16((UINT8*)&Ent2B[InVal]);
+				OutVal += AddVal;
+				OutVal &= OutMask;
 				OutPos[0x00] = (UINT8)((OutVal & 0x00FF) >> 0);
 				OutPos[0x01] = (UINT8)((OutVal & 0xFF00) >> 8);
 #endif
@@ -4535,13 +4688,13 @@ static bool DecompressDataBlk(VGM_PCM_DATA* Bank, UINT32 DataSize, const UINT8* 
 		}
 		break;
 	default:
-		printf("Error: Unknown data block compression!\n");
+		fprintf(stderr, "Error: Unknown data block compression!\n");
 		return false;
 	}
 	
 #if defined(_DEBUG) && defined(WIN32)
 	Time = GetTickCount() - Time;
-	printf("Decompression Time: %lu\n", Time);
+	fprintf(stderr, "Decompression Time: %u\n", Time);
 #endif
 	
 	return true;
@@ -4605,7 +4758,7 @@ static void ReadPCMTable(UINT32 DataSize, const UINT8* Data)
 	memcpy(PCMTbl.Entries, &Data[0x06], TblSize);
 	
 	if (DataSize < 0x06 + TblSize)
-		printf("Warning! Bad PCM Table Length!\n");
+		fprintf(stderr, "Warning! Bad PCM Table Length!\n");
 	
 	return;
 }
@@ -4793,11 +4946,18 @@ static void InterpretVGM(UINT32 SampleCount)
 					if (VGMHead.lngTotalSamples != (UINT32)VGMSmplPos)
 					{
 #ifdef CONSOLE_MODE
-						printf("Warning! Header Samples: %u\t Counted Samples: %u\n",
+						fprintf(stderr, "Warning! Header Samples: %u\t Counted Samples: %u\n",
 								VGMHead.lngTotalSamples, VGMSmplPos);
 						ErrorHappened = true;
 #endif
 						VGMHead.lngTotalSamples = VGMSmplPos;
+					}
+					
+					if (HardStopOldVGMs)
+					{
+						if (VGMHead.lngVersion < 0x150 ||
+							(VGMHead.lngVersion == 0x150 && HardStopOldVGMs == 0x02))
+						Chips_GeneralActions(0x01); // reset all chips, for instant silence
 					}
 					VGMEnd = true;
 					break;
@@ -4912,7 +5072,7 @@ static void InterpretVGM(UINT32 SampleCount)
 					case 0x87:	// YMF278B RAM Image
 						if (! CHIP_CHECK(YMF278B))
 							break;
-						//ymf278b_write_ram(CurChip, ROMSize, DataStart, DataLen, ROMData);
+						ymf278b_write_ram(CurChip, DataStart, DataLen, ROMData);
 						break;
 					case 0x88:	// Y8950 DELTA-T ROM Image
 						if (! CHIP_CHECK(Y8950) || PlayingMode == 0x01)
@@ -5020,6 +5180,11 @@ static void InterpretVGM(UINT32 SampleCount)
 						scsp_write_ram(CurChip, DataStart, DataLen, ROMData);
 						break;
 #endif					
+					case 0xE1:	// ES5503 RAM
+						if (! CHIP_CHECK(ES5503))
+							break;
+						es5503_write_ram(CurChip, DataStart, DataLen, ROMData);
+						break;
 					}
 					break;
 				}
@@ -5028,6 +5193,16 @@ static void InterpretVGM(UINT32 SampleCount)
 			case 0xE0:	// Seek to PCM Data Bank Pos
 				PCMBank[0x00].DataPos = ReadLE32(&VGMPnt[0x01]);
 				VGMPos += 0x05;
+				break;
+			case 0x31:	// Set AY8910 stereo mask
+				TempByt = VGMPnt[0x01];
+				TempLng = TempByt & 0x3F;
+				CurChip = (TempByt & 0x80)? 1: 0;
+				if (TempByt & 0x40)
+					ym2203_set_stereo_mask_ay(CurChip, TempLng);
+				else
+					ayxx_set_stereo_mask(CurChip, TempLng);
+				VGMPos += 0x02;
 				break;
 			case 0x4F:	// GG Stereo
 				if (CHIP_CHECK(SN76496))
@@ -5558,7 +5733,7 @@ static void InterpretVGM(UINT32 SampleCount)
 #ifdef CONSOLE_MODE
 				if (! CmdList[Command])
 				{
-					printf("Unknown command: %02hhX\n", Command);
+					fprintf(stderr, "Unknown command: %02hhX\n", Command);
 					CmdList[Command] = true;
 				}
 #endif
@@ -5874,7 +6049,7 @@ static void ResampleChipStream(CA_LIST* CLst, WAVE_32BS* RetSample, UINT32 Lengt
 			InNow = (UINT32)fp2i_ceil(InPosL);
 			/*if (InNow - CAA->SmpNext >= SMPL_BUFSIZE)
 			{
-				printf("Sample Buffer Overflow!\n");
+				fprintf(stderr, "Sample Buffer Overflow!\n");
 #ifdef _DEBUG
 				*(char*)NULL = 0;
 #endif
@@ -5895,7 +6070,7 @@ static void ResampleChipStream(CA_LIST* CLst, WAVE_32BS* RetSample, UINT32 Lengt
 			InBase = FIXPNT_FACT + (UINT32)(InPosL - (SLINT)CAA->SmpNext * FIXPNT_FACT);
 			/*if (fp2i_floor(InBase) >= SMPL_BUFSIZE)
 			{
-				printf("Sample Buffer Overflow!\n");
+				fprintf(stderr, "Sample Buffer Overflow!\n");
 #ifdef _DEBUG
 				*(char*)NULL = 0;
 #endif

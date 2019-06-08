@@ -1,7 +1,7 @@
 // ChipMapper.c - Handles Chip Write (including OPL Hardware Support)
 
 #include <stdio.h>
-#include <memory.h>
+#include <string.h>
 #include <math.h>
 #include "stdbool.h"
 
@@ -12,14 +12,28 @@
 #endif
 
 #ifdef WIN32
+
 #include <conio.h>
 #include <windows.h>	// for QueryPerformance###
+
 #else
+
 #ifndef DISABLE_HW_SUPPORT
 #include <unistd.h>
+#ifdef __APPLE__
+#include <architecture/i386/io.h>
+#else
 #include <sys/io.h>
 #endif
+#endif	// DISABLE_HW_SUPPORT
+
 #include <time.h>
+#endif
+
+#ifdef __APPLE__
+#define ioperm(x,y,z)
+#define outb(x,y)
+#define inb(x)
 #endif
 
 #include "chips/mamedef.h"
@@ -71,6 +85,7 @@ extern bool WINNT_MODE;
 extern UINT16 FMPort;
 extern UINT8 PlayingMode;
 extern bool FMBreakFade;
+extern bool FMOPL2Pan;
 extern float FinalVol;
 
 #ifdef WIN32
@@ -84,7 +99,8 @@ extern float FinalVol;
 #define DELAY_OPL2_REG	 3.3f
 #define DELAY_OPL2_DATA	23.0f
 #define DELAY_OPL3_REG	 0.0f
-#define DELAY_OPL3_DATA	 0.28f
+//#define DELAY_OPL3_DATA	 0.28f	// fine for ISA cards (like SoundBlaster 16)
+#define DELAY_OPL3_DATA	 13.3f	// required for PCI cards (CMI8738)
 #ifdef WIN32
 INT64 HWusTime;
 #endif
@@ -726,14 +742,14 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 			}
 			break;
 		case 0x09:	// YM3812
-			if ((Offset & 0xF0) == 0xC0 && ! (Data & 0x30))
+			if ((Offset & 0xF0) == 0xC0 && (! FMOPL2Pan || ! (Data & 0x30)))
 				Data |= 0x30;
 			else if ((Offset & 0xF0) == 0xE0)
 				Data &= 0xF3;
 			OPL_RegMapper((ChipID << 8) | Offset, Data);
 			break;
 		case 0x0A:	// YM3526
-			if ((Offset & 0xF0) == 0xC0 && ! (Data & 0x30))
+			if ((Offset & 0xF0) == 0xC0 && (! FMOPL2Pan || ! (Data & 0x30)))
 				Data |= 0x30;
 			else if ((Offset & 0xF0) == 0xE0)
 				Data &= 0xF0;
@@ -742,7 +758,7 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x0B:	// Y8950
 			if (Offset == 0x07 || (Offset >= 0x09 && Offset <= 0x17))
 				break;
-			if ((Offset & 0xF0) == 0xC0 && ! (Data & 0x30))
+			if ((Offset & 0xF0) == 0xC0 && (! FMOPL2Pan || ! (Data & 0x30)))
 				Data |= 0x30;
 			else if ((Offset & 0xF0) == 0xE0)
 				Data &= 0xF0;

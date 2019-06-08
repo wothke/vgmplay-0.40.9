@@ -8,17 +8,12 @@
 #include <math.h>
 
 #include "mamedef.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
 //#include "sndintrf.h"
 //#include "streams.h"
 #include "ym2151.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 
 /* undef this to not use MAME timer system */
@@ -1757,8 +1752,8 @@ INLINE void chan_calc(unsigned int chan)
 	env = volume_calc(op+3);	/* C2 */
 	if (env < ENV_QUIET)
 		chanout[chan]    += op_calc(op+3, env, c2);
-	if (chanout[chan] > +8192)		chanout[chan] = +8192;
-	else if (chanout[chan] < -8192)	chanout[chan] = -8192;
+	if (chanout[chan] > +16384)			chanout[chan] = +16384;
+	else if (chanout[chan] < -16384)	chanout[chan] = -16384;
 
 	/* M1 */
 	op->mem_value = mem;
@@ -1823,8 +1818,8 @@ INLINE void chan7_calc(void)
 		if (env < ENV_QUIET)
 			chanout[7] += op_calc(op+3, env, c2);
 	}
-	if (chanout[7] > +8192)			chanout[7] = +8192;
-	else if (chanout[7] < -8192)	chanout[7] = -8192;
+	if (chanout[7] > +16384)		chanout[7] = +16384;
+	else if (chanout[7] < -16384)	chanout[7] = -16384;
 	/* M1 */
 	op->mem_value = mem;
 }

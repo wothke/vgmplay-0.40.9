@@ -111,21 +111,16 @@ has twice the steps, happening twice as fast.
 
 ***************************************************************************/
 
+#include <stddef.h>	// for NULL
 #include "mamedef.h"
 //#include "sndintrf.h"
 //#include "streams.h"
 //#include "cpuintrf.h"
 //#include "cpuexec.h"
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
 #include <stdio.h>
 #include "ay8910.h"
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
 
 /*************************************
  *
@@ -1337,6 +1332,18 @@ void ay8910_set_mute_mask_ym(void *chip, UINT32 MuteMask)
 	for (CurChn = 0; CurChn < NUM_CHANNELS; CurChn ++)
 		psg->MuteMsk[CurChn] = (MuteMask & (1 << CurChn)) ? 0 : ~0;
 	
+	return;
+}
+
+void ay8910_set_stereo_mask_ym(void *chip, UINT32 StereoMask)
+{
+	ay8910_context *psg = (ay8910_context *)chip;
+	UINT8 CurChn;
+	
+	for (CurChn = 0; CurChn < NUM_CHANNELS; CurChn ++) {
+		psg->StereoMask[CurChn] = StereoMask &3;
+		StereoMask >>= 2;
+	}	
 	return;
 }
 

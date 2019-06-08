@@ -1,7 +1,7 @@
 
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
 #include <stddef.h>	// for NULL
+#include <string.h>	// for memset
 #include "mamedef.h"
 
 typedef UINT8	BYTE;

@@ -4,6 +4,7 @@
 
 ****************************************************************/
 
+#include <stddef.h>	// for NULL
 #include "mamedef.h"
 //#include "sndintrf.h"
 //#include "streams.h"
@@ -15,12 +16,6 @@
 #define EC_MAME		0x00	// SN76496 core from MAME
 #ifdef ENABLE_ALL_CORES
 #define EC_MAXIM	0x01	// SN76489 core by Maxim (from in_vgm)
-#endif
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
 #endif
 
 /* for stream system */
@@ -56,7 +51,7 @@ int device_start_sn764xx(UINT8 ChipID, int clock, int shiftregwidth, int noiseta
 						 int negate, int stereo, int clockdivider, int freq0)
 {
 	sn764xx_state *info;
-	int rate;
+	int rate = 0;
 	
 	if (ChipID >= MAX_CHIPS)
 		return 0;

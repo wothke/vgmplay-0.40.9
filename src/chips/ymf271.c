@@ -33,25 +33,15 @@
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <malloc.h>
-#include <memory.h>
+#include <stdlib.h>
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
+#include "../stdbool.h"
 #include "ymf271.h"
 
-#ifndef __cplusplus	// C++ already has the bool-type
-#define	false	0x00
-#define	true	0x01
-typedef	unsigned char	bool;
-#endif // !__cplusplus
-
-#ifdef EMSCRIPTEN
-#include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
-
 //#define DEVCB_NULL							{ DEVCB_TYPE_NULL }
-#define DEVCB_NULL							DEVCB_TYPE_NULL
-#define DEVCB_TYPE_NULL				(0)
+//#define DEVCB_NULL							DEVCB_TYPE_NULL
+//#define DEVCB_TYPE_NULL				(0)
 
 #define VERBOSE		(1)
 
@@ -524,7 +514,9 @@ static void init_envelope(YMF271Chip *chip, YMF271Slot *slot)
 	slot->env_decay2_step = (rate < 4) ? 0 : (int)(((double)(255-0) / chip->lut_dc[rate]) * 65536.0);
 
 	// init release state
-	rate = get_keyscaled_rate(slot->relrate * 4, keycode, slot->keyscale);
+	//rate = get_keyscaled_rate(slot->relrate * 4, keycode, slot->keyscale);
+	// improved rate as tested by GTheGuardian and kirishima
+	rate = get_keyscaled_rate(slot->relrate * 1.75, keycode, slot->keyscale);
 	slot->env_release_step = (rate < 4) ? 0 : (int)(((double)(255-0) / chip->lut_ar[rate]) * 65536.0);
 
 	slot->volume = (255-160) << ENV_VOLUME_SHIFT;		// -60db

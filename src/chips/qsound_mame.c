@@ -36,16 +36,11 @@
 #ifdef _DEBUG
 #include <stdio.h>
 #endif
-#include <memory.h>
-#include <malloc.h>
-#include <math.h>
-#include "qsound.h"
-
-#ifdef EMSCRIPTEN
 #include <stdlib.h>
-#else
-#define NULL	((void *)0)
-#endif
+#include <string.h>	// for memset
+#include <stddef.h>	// for NULL
+#include <math.h>
+#include "qsound_mame.h"
 
 /*
 Debug defines
@@ -109,11 +104,11 @@ static qsound_state QSoundData[MAX_CHIPS];
 
 
 /* Function prototypes */
-//static STREAM_UPDATE( qsound_update );
+//static STREAM_UPDATE( qsoundm_update );
 static void qsound_set_command(qsound_state *chip, UINT8 address, UINT16 data);
 
 //static DEVICE_START( qsound )
-int device_start_qsound(UINT8 ChipID, int clock)
+int device_start_qsoundm(UINT8 ChipID, int clock)
 {
 	//qsound_state *chip = get_safe_token(device);
 	qsound_state *chip;
@@ -145,7 +140,7 @@ int device_start_qsound(UINT8 ChipID, int clock)
 		*device, 0, 2,
 		device->clock() / QSOUND_CLOCKDIV,
 		chip,
-		qsound_update );*/
+		qsoundm_update );*/
 
 	/*if (LOG_WAVE)
 	{
@@ -177,7 +172,7 @@ int device_start_qsound(UINT8 ChipID, int clock)
 }
 
 //static DEVICE_STOP( qsound )
-void device_stop_qsound(UINT8 ChipID)
+void device_stop_qsoundm(UINT8 ChipID)
 {
 	//qsound_state *chip = get_safe_token(device);
 	qsound_state *chip = &QSoundData[ChipID];
@@ -194,7 +189,7 @@ void device_stop_qsound(UINT8 ChipID)
 	free(chip->sample_rom);	chip->sample_rom = NULL;
 }
 
-void device_reset_qsound(UINT8 ChipID)
+void device_reset_qsoundm(UINT8 ChipID)
 {
 	qsound_state *chip = &QSoundData[ChipID];
 	int adr;
@@ -210,8 +205,8 @@ void device_reset_qsound(UINT8 ChipID)
 	return;
 }
 
-//WRITE8_DEVICE_HANDLER( qsound_w )
-void qsound_w(UINT8 ChipID, offs_t offset, UINT8 data)
+//WRITE8_DEVICE_HANDLER( qsoundm_w )
+void qsoundm_w(UINT8 ChipID, offs_t offset, UINT8 data)
 {
 	//qsound_state *chip = get_safe_token(device);
 	qsound_state *chip = &QSoundData[ChipID];
@@ -236,8 +231,8 @@ void qsound_w(UINT8 ChipID, offs_t offset, UINT8 data)
 	}
 }
 
-//READ8_DEVICE_HANDLER( qsound_r )
-UINT8 qsound_r(UINT8 ChipID, offs_t offset)
+//READ8_DEVICE_HANDLER( qsoundm_r )
+UINT8 qsoundm_r(UINT8 ChipID, offs_t offset)
 {
 	/* Port ready bit (0x80 if ready) */
 	return 0x80;
@@ -277,12 +272,10 @@ static void qsound_set_command(qsound_state *chip, UINT8 address, UINT16 data)
 			// bank, high bits unknown
 			ch = (ch + 1) & 0x0f;	/* strange ... */
 			chip->channel[ch].bank = (data & 0x7f) << 16;	// Note: The most recent MAME doesn't do "& 0x7F"
-//#ifdef _DEBUG
-#ifndef EMSCRIPTEN
+#ifdef _DEBUG
 			if (data && !(data & 0x8000))
-				printf("QSound Ch %u: Bank = %04x\n",ch,data);
+				fprintf(stderr, "QSound Ch %u: Bank = %04x\n",ch,data);
 #endif
-//#endif
 			break;
 		case 1:
 			// start/cur address
@@ -300,12 +293,10 @@ static void qsound_set_command(qsound_state *chip, UINT8 address, UINT16 data)
 			}*/
 			break;
 		case 3:
-//#ifdef _DEBUG
-#ifndef EMSCRIPTEN
+#ifdef _DEBUG
 			if (chip->channel[ch].enabled && data != 0x8000)
-				printf("QSound Ch %u: KeyOn = %04x\n",ch,data);
+				fprintf(stderr, "QSound Ch %u: KeyOn = %04x\n",ch,data);
 #endif
-//#endif
 			// key on (does the value matter? it always writes 0x8000)
 			//chip->channel[ch].enabled = 1;
 			chip->channel[ch].enabled = (data & 0x8000) >> 15;
@@ -321,9 +312,9 @@ static void qsound_set_command(qsound_state *chip, UINT8 address, UINT16 data)
 			break;
 		case 6:
 			// master volume
-#ifndef EMSCRIPTEN
+#ifdef _DEBUG
 			if (! chip->channel[ch].enabled && data)
-				printf("QSound update warning - please report!\n");
+				fprintf(stderr, "QSound update warning - please report!\n");
 #endif
 			chip->channel[ch].vol = data;
 			break;
@@ -363,8 +354,8 @@ static void qsound_set_command(qsound_state *chip, UINT8 address, UINT16 data)
 }
 
 
-//static STREAM_UPDATE( qsound_update )
-void qsound_update(UINT8 ChipID, stream_sample_t **outputs, int samples)
+//static STREAM_UPDATE( qsoundm_update )
+void qsoundm_update(UINT8 ChipID, stream_sample_t **outputs, int samples)
 {
 	//qsound_state *chip = (qsound_state *)param;
 	qsound_state *chip = &QSoundData[ChipID];
@@ -433,7 +424,7 @@ void qsound_update(UINT8 ChipID, stream_sample_t **outputs, int samples)
 		fwrite(outputs[1], samples*sizeof(QSOUND_SAMPLE), 1, chip->fpRawDataR);*/
 }
 
-void qsound_write_rom(UINT8 ChipID, offs_t ROMSize, offs_t DataStart, offs_t DataLength,
+void qsoundm_write_rom(UINT8 ChipID, offs_t ROMSize, offs_t DataStart, offs_t DataLength,
 					  const UINT8* ROMData)
 {
 	qsound_state* info = &QSoundData[ChipID];
@@ -455,7 +446,7 @@ void qsound_write_rom(UINT8 ChipID, offs_t ROMSize, offs_t DataStart, offs_t Dat
 }
 
 
-void qsound_set_mute_mask(UINT8 ChipID, UINT32 MuteMask)
+void qsoundm_set_mute_mask(UINT8 ChipID, UINT32 MuteMask)
 {
 	qsound_state* info = &QSoundData[ChipID];
 	UINT8 CurChn;
@@ -491,7 +482,7 @@ void qsound_set_mute_mask(UINT8 ChipID, UINT32 MuteMask)
 		case DEVINFO_STR_SOURCE_FILE:						strcpy(info->s, __FILE__);						break;
 		case DEVINFO_STR_CREDITS:					strcpy(info->s, "Copyright Nicola Salmoria and the MAME Team"); break;
 	}
-}//
+}*/
 
 /**************** end of file ****************/
 
