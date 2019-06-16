@@ -92,7 +92,8 @@ VgmBackendAdapter = (function(){ var $this = function (resourcePath) {
 					author: String, 
 					desc: String, 
 					notes: String, 
-					program: String, 
+					program: String,	// deprecated use "system" 
+					system: String, 
 					chips: String,
 					tracks: Number,
 					currentTrack: Number
@@ -101,10 +102,12 @@ VgmBackendAdapter = (function(){ var $this = function (resourcePath) {
 		unicodeToString: function(ptr) {
 			ptr = ptr >> 2;	//32-bit
 			var str = '';
-			while (1) {
+			for (var i= 0; i< 255*4; i++) {	// use a limit just in case
 				var ch = this.Module.HEAP32[ptr++];
-				if (!ch) return str;
-					str += String.fromCharCode(ch);
+				if (!ch) { 
+					return str;
+				}
+				str += String.fromCharCode(ch);
 			}
 		},
 		
@@ -118,7 +121,8 @@ VgmBackendAdapter = (function(){ var $this = function (resourcePath) {
 			result.author= this.unicodeToString(array[1]);		
 			result.desc= this.unicodeToString(array[2]);
 			result.notes= this.unicodeToString(array[3]);
-			result.program= this.unicodeToString(array[4]);
+			result.system= this.unicodeToString(array[4]);
+			result.program= result.system;	// deprecated
 			result.chips= this.Module.Pointer_stringify(array[5]);
 			var t= this.Module.Pointer_stringify(array[6]);
 			result.tracks= parseInt(t);

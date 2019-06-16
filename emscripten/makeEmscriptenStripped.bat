@@ -2,12 +2,14 @@ rem  POOR MAN'S DOS PROMPT BUILD SCRIPT.. make sure to delete the respective *.b
 rem  existing *.bc files will not be recompiled. Unfortunately the script occasionally 
 rem  fails for no good reason - this must be the wonderful world of DOS/Win... ;-)
 
+rem NOTE: VGM_BIG_ENDIAN is NOT the opposite of VGM_LITTLE_ENDIAN! and neither one should be set in order for it to work here
+
 setlocal enabledelayedexpansion
 
 SET ERRORLEVEL
 VERIFY > NUL
 
-set "OPT= -s FORCE_FILESYSTEM=1 -s WASM=0 -s VERBOSE=0 -s ASSERTIONS=0 -Wcast-align -fno-strict-aliasing -s VERBOSE=0 -s SAFE_HEAP=0 -s NO_EXIT_RUNTIME=1 -s DISABLE_EXCEPTION_CATCHING=1 -DENABLE_ALL_CORES -DSTRIPPED_VGM -DVGM_BIG_ENDIAN -DFM_EMU -DADDITIONAL_FORMATS -DSET_CONSOLE_TITLE -DDISABLE_HW_SUPPORT -DNO_DEBUG_LOGS  -Wno-pointer-sign -I. -I.. -I../3rdParty/zlib/ -I../src/  -Os  -O3 --memory-init-file 0"
+set "OPT= -s FORCE_FILESYSTEM=1 -s WASM=0 -s VERBOSE=0 -s ASSERTIONS=0 -Wcast-align -fno-strict-aliasing -s VERBOSE=0 -s SAFE_HEAP=0 -s NO_EXIT_RUNTIME=1 -s DISABLE_EXCEPTION_CATCHING=1 -DENABLE_ALL_CORES -DSTRIPPED_VGM -DFM_EMU -DADDITIONAL_FORMATS -DSET_CONSOLE_TITLE -DDISABLE_HW_SUPPORT -DNO_DEBUG_LOGS  -Wno-pointer-sign -I. -I.. -I../3rdParty/zlib/ -I../src/  -Os  -O3 --memory-init-file 0"
 
 if not exist "built/thirdparty.bc" (
 	call emcc.bat %OPT%  ../3rdParty/zlib/adler32.c ../3rdParty/zlib/compress.c ../3rdParty/zlib/crc32.c ../3rdParty/zlib/gzio.c ../3rdParty/zlib/uncompr.c ../3rdParty/zlib/deflate.c ../3rdParty/zlib/trees.c ../3rdParty/zlib/zutil.c ../3rdParty/zlib/inflate.c ../3rdParty/zlib/infback.c ../3rdParty/zlib/inftrees.c ../3rdParty/zlib/inffast.c -o built/thirdparty.bc

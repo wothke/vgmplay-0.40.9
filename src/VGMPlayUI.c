@@ -93,7 +93,11 @@ static int _getch(void);
 #endif
 static INT8 stricmp_u(const char *string1, const char *string2);
 static INT8 strnicmp_u(const char *string1, const char *string2, size_t count);
-void ReadOptions(const char* AppName);	// EMSCRIPTEN we want to use this
+#ifdef EMSCRIPTEN
+char ReadOptions(const char* AppName);
+#else
+static void ReadOptions(const char* AppName);
+#endif
 static bool GetBoolFromStr(const char* TextStr);
 #if defined(XMAS_EXTRA) || defined(WS_DEMO)
 static bool XMas_Extra(char* FileName, bool Mode);
@@ -943,7 +947,11 @@ static INT8 strnicmp_u(const char *string1, const char *string2, size_t count)
 	return 0;
 }
 
-void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
+#ifdef EMSCRIPTEN
+char ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
+#else
+static void ReadOptions(const char* AppName)
+#endif
 {
 	const UINT8 CHN_COUNT[CHIP_COUNT] =
 	{	0x04, 0x09, 0x06, 0x08, 0x10, 0x08, 0x03, 0x00,
@@ -1038,7 +1046,11 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 	if (hFile == NULL)
 	{
 		printerr("Failed to load INI.\n");
+#ifdef EMSCRIPTEN
+		return -1; // signal "not ready"
+#else
 		return;
+#endif
 	}
 	
 	IniSection = 0x00;
@@ -1594,7 +1606,11 @@ void ReadOptions(const char* AppName)	// EMSCRIPTEN we want to use this
 	if (CHIP_SAMPLE_RATE <= 0)
 		CHIP_SAMPLE_RATE = SampleRate;
 	
+#ifdef EMSCRIPTEN
+	return 0;
+#else
 	return;
+#endif
 }
 
 static bool GetBoolFromStr(const char* TextStr)

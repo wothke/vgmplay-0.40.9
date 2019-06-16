@@ -80,17 +80,10 @@ extern UINT32 PauseTime;
 
 
 // reuse utils from original UI
-extern void ReadOptions(const char* filename);
+extern char ReadOptions(const char* filename);
 extern const wchar_t* GetTagStrEJ(const wchar_t* EngTag, const wchar_t* JapTag);
 extern const char * GetChipsInfo(void);
 
-/*
-#ifdef EMSCRIPTEN
-#define EMSCRIPTEN_KEEPALIVE __attribute__((used))
-#else
-#define EMSCRIPTEN_KEEPALIVE
-#endif
-*/
 #define BUF_SIZE	1024
 #define TEXT_MAX	255*4
 #define NUM_MAX	15
@@ -107,9 +100,13 @@ char title_str[TEXT_MAX];
 char author_str[TEXT_MAX];
 char desc_str[TEXT_MAX];
 char notes_str[TEXT_MAX];
-char tracks_str[TEXT_MAX];
+char system_str[TEXT_MAX];
 char chips_str[TEXT_MAX];
-char program_str[NUM_MAX];
+char tracks_str[NUM_MAX];
+
+char initialized= 0;
+char loaded= 0;
+
 
 typedef struct Info{
     const char* info_texts[7];
@@ -120,16 +117,18 @@ static struct Info info = {
 	.info_texts[1]= author_str,
 	.info_texts[2]= desc_str,
 	.info_texts[3]= notes_str,
-	.info_texts[4]= program_str,
+	.info_texts[4]= system_str,
 	.info_texts[5]= chips_str,
 	.info_texts[6]= tracks_str
 };
 
 extern void emu_teardown (void)  __attribute__((noinline));
 extern void EMSCRIPTEN_KEEPALIVE emu_teardown (void) {
-	StopVGM();
-	CloseVGMFile();
-	VGMPlay_Deinit();
+	if (initialized) {// initialize once and reuse 
+		StopVGM();
+		CloseVGMFile();
+//		VGMPlay_Deinit();	
+	}
 }
 
 char ini_file[TEXT_MAX];
@@ -138,19 +137,27 @@ char music_file[TEXT_MAX];
 extern int emu_init(int sample_rate, char *basedir, char *songmodule) __attribute__((noinline));
 extern EMSCRIPTEN_KEEPALIVE int emu_init(int sample_rate, char *basedir, char *songmodule)
 {
+	loaded= 0;
+	
 	emu_teardown();
 	
-	VGMPlay_Init();
-	snprintf(ini_file, TEXT_MAX, "VGMPlay.ini");
-	ReadOptions(ini_file);	// XXX FIXME not async!
-	
-	SampleRate = sample_rate;	// override whatever may be hardcoded in the config.. by using what is needed by WebAudio later resampling is avoided
-	
-	VGMPlay_Init2();
+	if (!initialized) {
+		VGMPlay_Init();
+		snprintf(ini_file, TEXT_MAX, "VGMPlay.ini");
+		if (ReadOptions(ini_file) == -1) {
+			VGMPlay_Deinit();
+			return -1;
+		}
+		SampleRate = sample_rate;	// override whatever may be hardcoded in the config.. by using what is needed by WebAudio later resampling is avoided
 		
+		VGMPlay_Init2();
+		initialized= 1;
+	}
 	snprintf(music_file, TEXT_MAX, "%s/%s", basedir, songmodule);
 	if(!OpenVGMFile(music_file))
 		return -1;
+	
+	loaded= 1;
 	return 0;
 }
 
@@ -170,38 +177,51 @@ extern int EMSCRIPTEN_KEEPALIVE emu_set_subsong(int subsong, int boostVolume) {
 	return 0;
 }
 
-int len_wstr(const wchar_t *crap) {
+int len_wstr(const wchar_t *crap, int charMax) {
 	// note: wchar_t is 4 bytes..
 	int len=0;
 	wchar_t c;
-	for (;(c = *crap); len++, crap++);
+	for (;(c = *crap) && (len<charMax); len++, crap++);
 	
 	return len;
 }
 
 #include <string.h>
-void copy_string(const char *dest, const wchar_t *src) {
-	memcpy(dest, src, (len_wstr(src)+1)*sizeof(wchar_t));
+void copy_string(char *dest, const wchar_t *src, int destSize) {
+	int len;
+	if (!src) {
+		len= 0;
+	} else {
+		// destSize is available size in bytes all inclusive
+		int charMax= destSize/sizeof(wchar_t) - 1; // maximal usable size in characters
+		
+		len= len_wstr(src, charMax);
+
+		memcpy(dest, src, len*sizeof(wchar_t));
+	}
+	((wchar_t*)(&dest[len*sizeof(wchar_t)]))[0]= 0; 	// make sure it is terminated
 }
 
 extern const char** emu_get_track_info() __attribute__((noinline));
-extern const char** EMSCRIPTEN_KEEPALIVE emu_get_track_info() {	
-	const wchar_t* TitleTag= GetTagStrEJ(VGMTag.strTrackNameE, VGMTag.strTrackNameJ);
-	const wchar_t* GameTag = GetTagStrEJ(VGMTag.strGameNameE, VGMTag.strGameNameJ);
-	const wchar_t* AuthorTag = GetTagStrEJ(VGMTag.strAuthorNameE, VGMTag.strAuthorNameJ);
-	const wchar_t* SystemTag = GetTagStrEJ(VGMTag.strSystemNameE, VGMTag.strSystemNameJ);
+extern const char** EMSCRIPTEN_KEEPALIVE emu_get_track_info() {
+	if (loaded) {	
+		const wchar_t* TitleTag= GetTagStrEJ(VGMTag.strTrackNameE, VGMTag.strTrackNameJ);
+		const wchar_t* GameTag = GetTagStrEJ(VGMTag.strGameNameE, VGMTag.strGameNameJ);
+		const wchar_t* AuthorTag = GetTagStrEJ(VGMTag.strAuthorNameE, VGMTag.strAuthorNameJ);
+		const wchar_t* SystemTag = GetTagStrEJ(VGMTag.strSystemNameE, VGMTag.strSystemNameJ);
 
-	copy_string(title_str, TitleTag);
-	copy_string(author_str, AuthorTag);
-	copy_string(desc_str, GameTag);
-	copy_string(notes_str, VGMTag.strNotes);
-	memcpy(program_str, SystemTag, len_wstr(SystemTag)*sizeof(wchar_t));
-	
-	snprintf(tracks_str, NUM_MAX, "%d",  1);
-	
-	const char* chips = 	GetChipsInfo();
-	snprintf(chips_str, TEXT_MAX, "%s",  chips);
-		
+		copy_string(title_str, TitleTag, TEXT_MAX);
+		copy_string(author_str, AuthorTag, TEXT_MAX);
+		copy_string(desc_str, GameTag, TEXT_MAX);		
+		copy_string(notes_str, VGMTag.strNotes, TEXT_MAX);
+		copy_string(system_str, SystemTag, TEXT_MAX);	
+//		memcpy(system_str, SystemTag, len_wstr(SystemTag)*sizeof(wchar_t));
+
+		const char* chips = 	GetChipsInfo();
+		snprintf(chips_str, TEXT_MAX, "%s",  chips);
+
+		snprintf(tracks_str, NUM_MAX, "%d",  1);
+	}
 	return info.info_texts;
 }
 
@@ -236,6 +256,8 @@ int GetFileLength(VGM_HEADER* FileHead)
 
 extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) __attribute__((noinline));
 extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) {
+	if (!loaded) return -1;
+	
 	if (max_pos<0) {
 		INT32 l= GetFileLength(&VGMHead);
 		max_pos= SampleVGM2Playback(l);
@@ -245,6 +267,8 @@ extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_max_position(void) {
 
 extern int EMSCRIPTEN_KEEPALIVE emu_seek_position(INT32 pos) __attribute__((noinline));
 extern int EMSCRIPTEN_KEEPALIVE emu_seek_position(INT32 pos) {
+	if (!loaded) return -1;
+	
 	if (pos > emu_get_max_position()) {
 		return -1;
 	}
@@ -260,6 +284,8 @@ extern INT32 EMSCRIPTEN_KEEPALIVE emu_get_position(void) {
 
 extern int emu_compute_audio_samples() __attribute__((noinline));
 extern int EMSCRIPTEN_KEEPALIVE emu_compute_audio_samples() {
+	if (!loaded) return 0;	// just in case
+	
 	if (!EndPlay) {
 		int size= FillBuffer(sample_buffer, SAMPLE_BUF_SIZE);
 		if (size) {

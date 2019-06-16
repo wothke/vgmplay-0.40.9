@@ -625,7 +625,7 @@ void chip_reg_write(UINT8 ChipType, UINT8 ChipID,
 		case 0x11:	// PWM
 			pwm_chn_w(ChipID, Port, (Offset << 8) | (Data << 0));
 			break;
-#ifndef STRIPPED_VGM		
+#ifndef STRIPPED_VGM	
 		case 0x12:	// AY8910
 			ayxx_w(ChipID, 0x00, Offset);
 			ayxx_w(ChipID, 0x01, Data);
